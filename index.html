@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="author" content="Nathan Mallet">
+    <meta name="description" content="Dynamic scheduling app">
+    <link rel="stylesheet" href="styles.css">
+    <title>Dynamic Scheduler</title>
+</head>
+
+<body>
+    <main>
+        <table>
+            <tr id="menu">
+                <td><input id="addButton" type="button" value="Add"></td>
+                <td><input type="button" value="Remove"></td>
+            </tr>
+            <tr id="schedule">
+                <td id="timeline"><canvas id="timelineCanvas"></canvas></td>
+                <td id="taskline"></td>
+            </tr>
+        </table>
+
+        <div id="addMenu">
+            <form name="addForm" id="addForm">
+                <label for="taskName">Name</label>
+                <input type="text" id="taskName" name="taskName" placeholder="Task Name">
+                <br>
+                <label for="taskDur">Duration</label>
+                <input type="number" id="taskDur" name="taskDur" placeholder="Duration (Minutes)">
+                <br>
+                <input type="submit" id="addTaskSubmit" value="Submit">
+                <input type="button" id="addTaskCancel" value="Cancel">
+            </form>
+        </div>
+        
+        <script src="dynamic-scheduler.js"></script> 
+    </main>
+</body>
+
+</html>

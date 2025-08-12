@@ -1,0 +1,55 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background-color: grey;
+    height: 100vw;
+}
+
+table {
+    height: 100vw;
+    width: 50%;
+    border: solid 1px black;
+
+}
+
+td {
+    border: solid 1px black;
+}
+
+input, label {
+    margin: 5px;
+}
+
+.taskBlock {
+    min-width: 100%;
+    border: solid 1px black;
+}
+
+#schedule {
+    height: 100%;
+}
+
+#addMenu {
+    visibility: hidden;
+    border: solid 1px black;
+    background-color: lightblue;
+    max-width: 200px;
+    position: relative;
+}
+
+#timeline {
+    max-width: 30px;
+}
+
+#timelineCanvas {
+    width: 100%;
+    height: 100%;
+}
+
+#taskline {
+    min-width: 150px;
+}

@@ -7,13 +7,13 @@
 body {
     background-color: grey;
     height: 100vw;
+    position: relative;
 }
 
 table {
     height: 100vw;
     width: 50%;
     border: solid 1px black;
-
 }
 
 td {
@@ -38,7 +38,7 @@ input, label {
     border: solid 1px black;
     background-color: lightblue;
     max-width: 200px;
-    position: relative;
+    position: absolute;
 }
 
 #timeline {
@@ -53,4 +53,11 @@ input, label {
 #taskline {
     min-width: 150px;
     position: relative;
+}
+
+#timeMarker {
+    height: 1px;
+    background-color: red;
+    position: absolute;
+    margin: 3px;
 }

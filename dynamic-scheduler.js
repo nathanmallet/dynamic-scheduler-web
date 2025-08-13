@@ -8,10 +8,19 @@ let schedule = {
 }
 
 function setupCanvas() {
+    // Timeline canvas
     let canvas = document.getElementById("timelineCanvas");
     canvas.height = canvas.offsetHeight;
     canvas.width = canvas.offsetWidth;
-   
+
+    // Time marker
+    let marker = document.getElementById("timeMarker");
+    let sched = document.getElementById("schedule");
+    marker.style.width = sched.offsetWidth + 'px';
+
+    // Add menu
+    let menu = document.getElementById("addMenu");
+    menu.style.top = 40 + 'px';
 }
 
 //-- Utility --//
@@ -57,21 +66,41 @@ function drawTimeline() {
 
 // TODO: Timeline should draw all 24 hours (later reduced/increased by zoom/scroll handler), schedule start/end should set a marker to indicate day start/end instead
 
-// TODO: Draw the dynamic current time line
+
+// TODO: Time marker and task start are currently offset for some reason
 function drawCurrentTime() {
-    // TODO: NEED NEW CANVAS FOR TASKLINE
-    let canvas = document.getElementById("timelineCanvas");
-    let ctx = canvas.getContext('2d');
+    let marker = document.getElementById("timeMarker");
+    let tasklineTop = document.getElementById("timelineCanvas").getBoundingClientRect().top;
+    marker.style.top = tasklineTop + window.scrollY + minToPx(getNowMinutes()) + 'px';
+}
+
+function updateTasks() {
+    for (let task of schedule.taskArr) {
+        if(task.finished) {
+            continue;
+        } else if(task.active) {
+            break;
+        } else if(task.head) {
+            task.start = getNowMinutes();
+            task.elem.style.top = minToPx(task.start) + 'px';
+        } else {
+            task.start = schedule.taskArr[schedule.taskArr.indexOf(task) - 1].end;
+            task.elem.style.top = minToPx(task.start) + 'px';
+        }
+    }
 }
 
 // Task object type
 class Task {
-    constructor(name, start, duration, elem) {
+    constructor(name, start, duration, head, elem) {
         this.name = name;
         this.start = start;
         this.duration = duration;
         this.elem = elem;
+        this.head = head;
+
         this.active = false;
+        this.activeStart = false;
         this.finished = false;
     }
 
@@ -104,21 +133,22 @@ function initAddFormHandler() {
 
         // Task block vertical alignment
         let taskStart;
+        let taskHead;
         if (schedule.taskArr.length == 0) {
-            taskStart = getNowMinutes();
+            taskStart = getNowMinutes(); 
+            taskHead = true;
         } else {
             taskStart = schedule.taskArr[schedule.taskArr.length - 1].end;
+            taskHead = false;
         }
         taskBlock.style.top = minToPx(taskStart) + 'px';
 
         // Append to the taskline element and ledger of current tasks
         let tasklineElem = document.getElementById("taskline");
         tasklineElem.append(taskBlock);
-
-        // Call Task constructor
-        let taskObj = new Task(taskName, taskStart, taskDur, taskBlock);
+        let taskObj = new Task(taskName, taskStart, taskDur, taskHead, taskBlock);
         schedule.taskArr.push(taskObj);
-        
+
         // Prevent default (unwanted page reload)
         return false;
     }
@@ -134,9 +164,18 @@ function initEventHandlers() {
     initAddFormHandler();
 }
 
+function updateEvents() {
+    drawCurrentTime();
+    updateTasks();
+    setTimeout(updateEvents, "1000");
+}
+
 //-- Program entry --//
 setupCanvas();
 drawTimeline();
 initEventHandlers();
 
+//-- Program Loop --//
+updateEvents();
 
+//-- Cleanup --//

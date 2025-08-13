@@ -14,10 +14,24 @@ function setupCanvas() {
    
 }
 
+//-- Utility --//
+function getNowMinutes() {
+    // Time in minutes since the start of the day
+    let date = new Date();
+    return +date.getHours() * 60 + +date.getMinutes();
+}
+
+function minToPx(min) {
+    // Number of minutes to canvas pixel size
+    let canvas = document.getElementById("timelineCanvas");
+    return (canvas.offsetHeight / schedule.totalTime) * min;
+}
+
+//-- Drawing --//
 function markTimeline(time, length) {
     let canvas = document.getElementById("timelineCanvas");
-    let lineY = (canvas.offsetHeight / schedule.totalTime) * time;
     let ctx = canvas.getContext('2d');
+    let lineY = minToPx(time);
     ctx.beginPath();
     ctx.moveTo(0, lineY);
     ctx.lineTo(length, lineY);
@@ -41,15 +55,30 @@ function drawTimeline() {
     }
 }
 
-// Task object type
-function Task(name, startTime, duration, elem) {
-    this.name = name;
-    this.startTime = startTime;
-    this.duration = duration;
-    this.elem = elem;
+// TODO: Timeline should draw all 24 hours (later reduced/increased by zoom/scroll handler), schedule start/end should set a marker to indicate day start/end instead
 
-    // Append whenever we create (TODO: insert in chronological order)
-    schedule.taskArr.append(this);
+// TODO: Draw the dynamic current time line
+function drawCurrentTime() {
+    // TODO: NEED NEW CANVAS FOR TASKLINE
+    let canvas = document.getElementById("timelineCanvas");
+    let ctx = canvas.getContext('2d');
+}
+
+// Task object type
+class Task {
+    constructor(name, start, duration, elem) {
+        this.name = name;
+        this.start = start;
+        this.duration = duration;
+        this.elem = elem;
+        this.active = false;
+        this.finished = false;
+    }
+
+    get end() {
+        return this.start + this.duration;
+    }
+
 }
 
 //-- Event Handlers --//
@@ -64,29 +93,40 @@ function initAddFormHandler() {
     let form = document.forms.addForm
     form.onsubmit = function() {
         let taskName = form.elements.taskName.value;
-        let taskDur = form.elements.taskDur.value;
+        let taskDur = +form.elements.taskDur.value;
 
         // Create/Customise new taskBlock div
         let taskBlock = document.createElement('div');
-        let canvas = document.getElementById("timelineCanvas");
         taskBlock.className = "taskBlock";
         taskBlock.innerText = taskName;
-        taskBlock.style.height = (canvas.offsetHeight / schedule.totalTime) * taskDur + 'px';
+        taskBlock.style.position = 'absolute';
+        taskBlock.style.height = minToPx(taskDur) + "px";
 
-        // TODO: Edit taskBlock y coord to match NOW or end of previous task
+        // Task block vertical alignment
+        let taskStart;
+        if (schedule.taskArr.length == 0) {
+            taskStart = getNowMinutes();
+        } else {
+            taskStart = schedule.taskArr[schedule.taskArr.length - 1].end;
+        }
+        taskBlock.style.top = minToPx(taskStart) + 'px';
 
         // Append to the taskline element and ledger of current tasks
         let tasklineElem = document.getElementById("taskline");
         tasklineElem.append(taskBlock);
 
-        // TODO: Call Task constructor (which should add us to the task ledger)
-
-
-        // Prevent default
+        // Call Task constructor
+        let taskObj = new Task(taskName, taskStart, taskDur, taskBlock);
+        schedule.taskArr.push(taskObj);
+        
+        // Prevent default (unwanted page reload)
         return false;
     }
 
-    // TODO: Init the cancel button handler (to reset input values and rehide the menu)
+    let addTaskCancel = document.getElementById("addTaskCancel");
+    addTaskCancel.onclick = function() {
+        document.getElementById("addMenu").style.visibility = 'hidden';
+    }
 }
 
 function initEventHandlers() {
@@ -98,7 +138,5 @@ function initEventHandlers() {
 setupCanvas();
 drawTimeline();
 initEventHandlers();
-
-// TODO: Merge menu bar into one table row
 
 

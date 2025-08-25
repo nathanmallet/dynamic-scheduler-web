@@ -1,3 +1,4 @@
+//-- GLOBAL --//
 let schedule = {
     taskArr: [],
     startTime: 0,
@@ -36,6 +37,12 @@ function minToPx(min) {
     return (canvas.offsetHeight / schedule.totalTime) * min;
 }
 
+function getTaskObjFromElem(elem) {
+    for (let task of schedule.taskArr) {
+        if (task.elem == elem) return task;
+    }
+}
+
 //-- Drawing --//
 function markTimeline(time, length) {
     let canvas = document.getElementById("timelineCanvas");
@@ -66,7 +73,6 @@ function drawTimeline() {
 
 // TODO: Timeline should draw all 24 hours (later reduced/increased by zoom/scroll handler), schedule start/end should set a marker to indicate day start/end instead
 
-
 // TODO: Time marker and task start are currently offset for some reason
 function drawCurrentTime() {
     let marker = document.getElementById("timeMarker");
@@ -75,7 +81,14 @@ function drawCurrentTime() {
 }
 
 function updateTasks() {
+    let first = true;
     for (let task of schedule.taskArr) {
+        if (first) {
+            // In case of head task removal, assign new head
+            task.head = true;
+            first = false;
+        }
+
         if(task.finished) {
             continue;
         } else if(task.active) {
@@ -159,9 +172,52 @@ function initAddFormHandler() {
     }
 }
 
+function initPopupHandler() {
+    let tasklineElem = document.getElementById("taskline");
+    tasklineElem.addEventListener('click', function(e) {
+        // NOTE: Be careful if you add more types of divs to the taskline area, we'll trigger this event
+        let target = e.target.closest('div');
+        if (!target) return;
+        
+        // 1. Create new popup div with edit/remove buttons
+        let popup = document.createElement('div');
+        popup.className = "popup";
+        popup.style.position = "absolute";
+        let remove = document.createElement('input');
+        remove.type = "button";
+        remove.value = "Remove";
+        popup.append(remove);
+        tasklineElem.append(popup);
+
+        // 2. Move the relevant popup to click position
+        let tlBox = tasklineElem.getBoundingClientRect();
+        popup.style.top = e.clientY - tlBox.top + 'px';
+        popup.style.left = e.clientX - tlBox.left + 'px';
+
+        // 3. Instatiate new div's button handlers with reference to target (to act on for edit/remove)
+        // Remove button handler
+        remove.addEventListener('click', function() {
+            let index = schedule.taskArr.indexOf(getTaskObjFromElem(target));
+            target.remove();
+            remove.remove();
+            for (let task of schedule.taskArr) {
+                if (target == task.elem) {
+                    schedule.taskArr.splice(index, 1);
+                }
+            }
+            // TODO: We should be able to update just a portion after the removal here for effeciency
+            updateTasks();
+        });
+
+        // TODO: Edit and close popup button (modal) button handlers
+
+    });
+}
+
 function initEventHandlers() {
     initAddMenuHandler();
     initAddFormHandler();
+    initPopupHandler();
 }
 
 function updateEvents() {

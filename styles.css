@@ -29,16 +29,19 @@ input, label {
     border: solid 1px black;
 }
 
-#schedule {
-    height: 100%;
-}
-
-#addMenu {
-    visibility: hidden;
+.popup {
     border: solid 1px black;
     background-color: lightblue;
     max-width: 200px;
     position: absolute;
+}
+
+#addMenu {
+    visibility: hidden;
+}
+
+#schedule {
+    height: 100%;
 }
 
 #timeline {

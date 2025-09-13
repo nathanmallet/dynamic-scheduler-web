@@ -37,6 +37,10 @@ input, label {
     border: solid 1px green;
 }
 
+.downtimeTask {
+    border: solid 1px purple;
+}
+
 .popup {
     border: solid 1px black;
     background-color: lightblue;

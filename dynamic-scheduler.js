@@ -82,8 +82,10 @@ function drawCurrentTime() {
 
 function updateTasks() {
     let first = true;
+    let newDowntime = null;
+    let downtimeIndex = 0;
     for (let task of schedule.taskArr) {
-        if (first) {
+        if (first && !task.downtime) {
             // In case of head task removal, assign new head
             task.head = true;
             first = false;
@@ -107,26 +109,69 @@ function updateTasks() {
             task.start = getNowMinutes();
             task.elem.style.top = minToPx(task.start) + 'px';
 
-            // TODO: Head but not active, count downtime, edit or add downtime block to the taskline
-        } else {
+            let index = schedule.taskArr.indexOf(task);
+            // If preceding downtime block doesn't yet exist and we are passed the schedule start time
+            if (task.start > schedule.startTime && (index == 0 || schedule.taskArr[index - 1].downtime == false)) {
+                // New downtime task block
+                let taskBlock = document.createElement('div');
+                taskBlock.className = "taskBlock";
+                taskBlock.classList.add("downtimeTask");
+                taskBlock.style.position = 'absolute';
+
+                // TODO: Inner text should only appear when block is large enough to contain it
+                taskBlock.innerText = "Down Time";
+
+                let downtimeDur;
+                let downtimeStart;
+                if (index == 0) {
+                    // Downtime for tasks with no previous tasks, is from schedule start time
+                    downtimeStart = schedule.startTime;
+                } else {
+                    // Regular downtime measurement, between current task start and previous finished task
+                    downtimeStart = schedule.taskArr[index - 1].end;
+                }
+                downtimeDur = task.start - downtimeStart;
+                taskBlock.style.height = minToPx(downtimeDur) + "px";
+                taskBlock.style.top = minToPx(downtimeStart) + 'px';
+
+                let tasklineElem = document.getElementById("taskline");
+                tasklineElem.append(taskBlock);
+                let taskObj = new Task("Down Time", downtimeStart, downtimeDur, false, taskBlock);
+                taskObj.downtime = true;
+                newDowntime = taskObj;
+                downtimeIndex = index;
+            } else if (task.start > schedule.startTime && schedule.taskArr[index - 1].downtime) {
+                // Elongate downtime block while task head remains inactive
+                schedule.taskArr[index - 1].elem.style.height = minToPx(task.start - schedule.taskArr[index - 1].start) + 'px';
+            }
+            
+        } else if(!task.downtime) {
             task.start = schedule.taskArr[schedule.taskArr.indexOf(task) - 1].end;
             task.elem.style.top = minToPx(task.start) + 'px';
         }
+    }
+
+    if (newDowntime) {
+        // TODO: This should be async instead
+        schedule.taskArr.splice(downtimeIndex, 0, newDowntime);
     }
 }
 
 // Task object type
 class Task {
     constructor(name, start, duration, head, elem) {
+        // Variables
         this.name = name;
         this.start = start;
         this.duration = duration;
         this.elem = elem;
         this.head = head;
 
+        // States
         this.active = false;
         this.activeStart = 0;
         this.finished = false;
+        this.downtime = false;
     }
 
     get end() {

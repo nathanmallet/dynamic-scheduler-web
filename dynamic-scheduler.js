@@ -92,10 +92,22 @@ function updateTasks() {
         if(task.finished) {
             continue;
         } else if(task.active) {
+            // Check if we have surpassed limit to transition to "finished" state
+            if(task.activeStart + task.duration < getNowMinutes()) {
+                task.finished = true;
+                task.elem.classList.remove("activeTask");
+                task.elem.classList.add("finishedTask");
+                let index = schedule.taskArr.indexOf(task);
+                if (schedule.taskArr.length-1 > index) schedule.taskArr[index + 1].head = true;
+                continue;
+            }
             break;
+            
         } else if(task.head) {
             task.start = getNowMinutes();
             task.elem.style.top = minToPx(task.start) + 'px';
+
+            // TODO: Head but not active, count downtime, edit or add downtime block to the taskline
         } else {
             task.start = schedule.taskArr[schedule.taskArr.indexOf(task) - 1].end;
             task.elem.style.top = minToPx(task.start) + 'px';
@@ -113,7 +125,7 @@ class Task {
         this.head = head;
 
         this.active = false;
-        this.activeStart = false;
+        this.activeStart = 0;
         this.finished = false;
     }
 
@@ -178,15 +190,73 @@ function initPopupHandler() {
         // NOTE: Be careful if you add more types of divs to the taskline area, we'll trigger this event
         let target = e.target.closest('div');
         if (!target) return;
+        let targetIndex = schedule.taskArr.indexOf(getTaskObjFromElem(target));
+        let targetObj = schedule.taskArr[targetIndex];
+
+        // Finished tasks require no further actions
+        if (targetObj.finished) return;
         
-        // 1. Create new popup div with edit/remove buttons
+        // 1. Create new popup div with necessary buttons
         let popup = document.createElement('div');
         popup.className = "popup";
         popup.style.position = "absolute";
+
+        // Remove button
         let remove = document.createElement('input');
         remove.type = "button";
         remove.value = "Remove";
         popup.append(remove);
+
+        // Edit button
+        let edit = document.createElement('input');
+        edit.type = "button";
+        edit.value = "Edit";
+        popup.append(edit);
+
+        // Activate/Deactivate buttons
+        if(targetObj.head) {
+            if(!targetObj.active) {
+                let activate = document.createElement('input');
+                activate.type = "button";
+                activate.value = "Activate";
+                popup.append(activate);
+
+                activate.addEventListener('click', function() {
+                    targetObj.active = true;
+                    targetObj.activeStart = getNowMinutes();
+                    targetObj.elem.classList.add("activeTask");
+                    activate.remove();
+                    popup.remove();
+
+                    // TODO: Count between activation time and previous finish time for downtime 
+                    // Add to a visible down time counter? Add in real time as head task remains inactive?
+                })
+            }
+            else {
+                let deactivate = document.createElement('input');
+                deactivate.type = "button";
+                deactivate.value = "Deactivate";
+                popup.append(deactivate);
+
+                deactivate.addEventListener('click', function() {
+                    targetObj.active = false;
+                    targetObj.elem.classList.remove("activeTask");
+                    deactivate.remove();
+                    popup.remove();
+
+                    // TODO: On split divide task time into two new blocks
+                    // 1. Time used since activation becomes a new finished block
+                    // 2. Remaining time in task duration becomes a new incomplete head task
+                })
+            }
+        }
+
+        // Cancel Button
+        let cancel = document.createElement('input');
+        cancel.type = "button";
+        cancel.value = "Cancel";
+        popup.append(cancel);
+
         tasklineElem.append(popup);
 
         // 2. Move the relevant popup to click position
@@ -197,19 +267,28 @@ function initPopupHandler() {
         // 3. Instatiate new div's button handlers with reference to target (to act on for edit/remove)
         // Remove button handler
         remove.addEventListener('click', function() {
-            let index = schedule.taskArr.indexOf(getTaskObjFromElem(target));
             target.remove();
             remove.remove();
+            popup.remove();
             for (let task of schedule.taskArr) {
                 if (target == task.elem) {
-                    schedule.taskArr.splice(index, 1);
+                    schedule.taskArr.splice(targetIndex, 1);
                 }
             }
             // TODO: We should be able to update just a portion after the removal here for effeciency
             updateTasks();
         });
 
-        // TODO: Edit and close popup button (modal) button handlers
+        edit.addEventListener('click', function() {
+            // TODO: Require another popup menu (name, duration, index)
+        })
+
+        cancel.addEventListener('click', function() {
+            cancel.remove();
+            popup.remove();
+        })
+
+        // TODO: Popup should be modal, requiring cancel button press (or 'esc' key press)
 
     });
 }

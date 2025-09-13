@@ -29,6 +29,14 @@ input, label {
     border: solid 1px black;
 }
 
+.activeTask {
+    border: solid 1px blue;
+}
+
+.finishedTask {
+    border: solid 1px green;
+}
+
 .popup {
     border: solid 1px black;
     background-color: lightblue;

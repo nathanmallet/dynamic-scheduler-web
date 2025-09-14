@@ -1,8 +1,8 @@
 //-- GLOBAL --//
 let schedule = {
     taskArr: [],
-    startTime: 9 * 60,
-    endTime: 21 * 60,
+    startTime: 9 * 60 * 60,
+    endTime: 21 * 60 * 60,
     get totalTime() {
         return this.endTime - this.startTime;
     }
@@ -33,20 +33,26 @@ function setupCanvas() {
 }
 
 //-- Utility --//
-function getNowMinutes() {
+function getNow() {
     if (debug) {
         return fakeTime;
     }
 
-    // Time in minutes since the start of the day
+    // Time in seconds since the start of the day
     let date = new Date();
-    return +date.getHours() * 60 + +date.getMinutes();
+    return (+date.getHours() * 3600) + (+date.getMinutes() * 60) + +date.getSeconds();
 }
 
 function minToPx(min) {
     // Number of minutes to canvas pixel size
     let canvas = document.getElementById("timelineCanvas");
     return (canvas.offsetHeight / (24 * 60)) * min;
+}
+
+function secToPx(sec) {
+    // Number of minutes to canvas pixel size
+    let canvas = document.getElementById("timelineCanvas");
+    return (canvas.offsetHeight / (24 * 60 * 60)) * sec;
 }
 
 function getTaskObjFromElem(elem) {
@@ -95,13 +101,13 @@ function drawTimeline() {
 function drawCurrentTime() {
     let marker = document.getElementById("timeMarker");
     let tasklineTop = document.getElementById("timelineCanvas").getBoundingClientRect().top;
-    marker.style.top = tasklineTop + window.scrollY + minToPx(getNowMinutes()) + 'px';
+    marker.style.top = tasklineTop + window.scrollY + secToPx(getNow()) + 'px';
 
     // Draw schedule start and stop
     let start = document.getElementById("startMarker");
-    start.style.top = tasklineTop + window.scrollY + minToPx(schedule.startTime) + 'px';
+    start.style.top = tasklineTop + window.scrollY + secToPx(schedule.startTime) + 'px';
     let stop = document.getElementById("stopMarker");
-    stop.style.top = tasklineTop + window.scrollY + minToPx(schedule.endTime) + 'px';
+    stop.style.top = tasklineTop + window.scrollY + secToPx(schedule.endTime) + 'px';
 }
 
 function updateTasks() {
@@ -119,7 +125,7 @@ function updateTasks() {
             continue;
         } else if(task.active) {
             // Check if we have surpassed limit to transition to "finished" state
-            if(task.activeStart + task.duration < getNowMinutes()) {
+            if(task.activeStart + task.duration < getNow()) {
                 task.finished = true;
                 task.elem.classList.remove("activeTask");
                 task.elem.classList.add("finishedTask");
@@ -130,8 +136,8 @@ function updateTasks() {
             break;
             
         } else if(task.head) {
-            task.start = getNowMinutes();
-            task.elem.style.top = minToPx(task.start) + 'px';
+            task.start = getNow();
+            task.elem.style.top = secToPx(task.start) + 'px';
 
             let index = schedule.taskArr.indexOf(task);
             // If preceding downtime block doesn't yet exist and we are passed the schedule start time
@@ -155,8 +161,8 @@ function updateTasks() {
                     downtimeStart = schedule.taskArr[index - 1].end;
                 }
                 downtimeDur = task.start - downtimeStart;
-                taskBlock.style.height = minToPx(downtimeDur) + "px";
-                taskBlock.style.top = minToPx(downtimeStart) + 'px';
+                taskBlock.style.height = secToPx(downtimeDur) + "px";
+                taskBlock.style.top = secToPx(downtimeStart) + 'px';
 
                 let tasklineElem = document.getElementById("taskline");
                 tasklineElem.append(taskBlock);
@@ -170,13 +176,13 @@ function updateTasks() {
                 let downtimeEnd = Math.min(task.start, schedule.endTime);
                 let downtimeDur = downtimeEnd - schedule.taskArr[index - 1].start;
                 schedule.taskArr[index - 1].duration = downtimeDur;
-                schedule.taskArr[index - 1].elem.style.height = minToPx(downtimeDur) + 'px';
+                schedule.taskArr[index - 1].elem.style.height = secToPx(downtimeDur) + 'px';
                 
             }
             
         } else if(!task.downtime) {
             task.start = schedule.taskArr[schedule.taskArr.indexOf(task) - 1].end;
-            task.elem.style.top = minToPx(task.start) + 'px';
+            task.elem.style.top = secToPx(task.start) + 'px';
         }
     }
 
@@ -190,18 +196,22 @@ function updateCount() {
     let countElem = document.getElementById("downtimeCount");
     let downtime  = getDowntimeTotal();
     if (!downtime) {
-        countElem.innerText = '00:00';
+        countElem.innerText = '00:00:00';
         return;
     }
     // Format to datetime style
     // Hours
-    let hours = Math.floor(downtime / 60);
+    let hours = Math.floor(downtime / 3600);
     if (hours < 10) hours = '0' + hours;
     // Minutes
-    let minutes = downtime - (hours*60);
+    let minutes = Math.floor((downtime - (hours * 3600)) / 60);
     if (minutes < 10) minutes = '0' + minutes;
+    // Seconds
+    let seconds = downtime - (hours*3600) - (minutes*60);
+    if (seconds < 10) seconds = '0' + seconds;
 
-    countElem.innerText = `${hours}:${minutes}`;
+
+    countElem.innerText = `${hours}:${minutes}:${seconds}`;
 }
 
 // Task object type
@@ -239,26 +249,27 @@ function initAddFormHandler() {
     let form = document.forms.addForm
     form.onsubmit = function() {
         let taskName = form.elements.taskName.value;
-        let taskDur = +form.elements.taskDur.value;
+        // Input as minutes, convert to seconds
+        let taskDur = +form.elements.taskDur.value * 60;
 
         // Create/Customise new taskBlock div
         let taskBlock = document.createElement('div');
         taskBlock.className = "taskBlock";
         // taskBlock.innerText = taskName;
         taskBlock.style.position = 'absolute';
-        taskBlock.style.height = minToPx(taskDur) + "px";
+        taskBlock.style.height = secToPx(taskDur) + "px";
 
         // Task block vertical alignment
         let taskStart;
         let taskHead;
         if (schedule.taskArr.length == 0 || schedule.taskArr[schedule.taskArr.length-1].finished) {
-            taskStart = getNowMinutes(); 
+            taskStart = getNow(); 
             taskHead = true;
         } else {
             taskStart = schedule.taskArr[schedule.taskArr.length - 1].end;
             taskHead = false;
         }
-        taskBlock.style.top = minToPx(taskStart) + 'px';
+        taskBlock.style.top = secToPx(taskStart) + 'px';
 
         // Append to the taskline element and ledger of current tasks
         let tasklineElem = document.getElementById("taskline");
@@ -315,7 +326,7 @@ function initPopupHandler() {
 
                 activate.addEventListener('click', function() {
                     targetObj.active = true;
-                    targetObj.activeStart = getNowMinutes();
+                    targetObj.activeStart = getNow();
                     targetObj.elem.classList.add("activeTask");
                     activate.remove();
                     popup.remove();
@@ -388,9 +399,9 @@ function initPopupHandler() {
 function initDebugHandler() {
     document.addEventListener('keydown', function(e) {
         if (e.code = 'ArrowDown') {
-            fakeTime += 15;
+            fakeTime += 15 * 60;
         } else if (e.code = 'ArrowUp') {
-            fakeTime -= 15;
+            fakeTime -= 15 * 60;
         }
     })
 }

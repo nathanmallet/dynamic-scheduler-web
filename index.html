@@ -11,12 +11,14 @@
 </head>
 
 <body>
-    <div id="timeMarker"></div>
+    <div id="timeMarker" class="marker"></div>
+    <div id="startMarker" class="marker"></div>
+    <div id="stopMarker" class="marker"></div>
     <main>
         <table>
             <tr id="menu">
                 <td><input id="addButton" type="button" value="Add"></td>
-                <td><input type="button" value="Remove"></td>
+                <td>Total Downtime: <div id="downtimeCount"></div></td>
             </tr>
             <tr id="schedule">
                 <td id="timeline"><canvas id="timelineCanvas"></canvas></td>

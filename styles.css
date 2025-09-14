@@ -48,6 +48,13 @@ input, label {
     position: absolute;
 }
 
+.marker {
+    height: 1px;
+    position: absolute;
+    margin-left: 3px;
+    z-index: 1;
+}
+
 #addMenu {
     visibility: hidden;
 }
@@ -71,8 +78,9 @@ input, label {
 }
 
 #timeMarker {
-    height: 1px;
     background-color: red;
-    position: absolute;
-    margin: 3px;
+}
+
+#startMarker, #stopMarker {
+    background-color: black;
 }

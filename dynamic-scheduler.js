@@ -1,12 +1,15 @@
 //-- GLOBAL --//
 let schedule = {
     taskArr: [],
-    startTime: 0,
-    endTime: 60 * 24,
+    startTime: 9 * 60,
+    endTime: 21 * 60,
     get totalTime() {
         return this.endTime - this.startTime;
     }
 }
+
+let debug = true;
+let fakeTime = schedule.startTime;
 
 function setupCanvas() {
     // Timeline canvas
@@ -14,10 +17,15 @@ function setupCanvas() {
     canvas.height = canvas.offsetHeight;
     canvas.width = canvas.offsetWidth;
 
-    // Time marker
+    // Time markers
     let marker = document.getElementById("timeMarker");
+    let start = document.getElementById("startMarker");
+    let stop = document.getElementById("stopMarker");
     let sched = document.getElementById("schedule");
+
     marker.style.width = sched.offsetWidth + 'px';
+    start.style.width = sched.offsetWidth + 'px';
+    stop.style.width = sched.offsetWidth + 'px';
 
     // Add menu
     let menu = document.getElementById("addMenu");
@@ -26,6 +34,10 @@ function setupCanvas() {
 
 //-- Utility --//
 function getNowMinutes() {
+    if (debug) {
+        return fakeTime;
+    }
+
     // Time in minutes since the start of the day
     let date = new Date();
     return +date.getHours() * 60 + +date.getMinutes();
@@ -34,13 +46,21 @@ function getNowMinutes() {
 function minToPx(min) {
     // Number of minutes to canvas pixel size
     let canvas = document.getElementById("timelineCanvas");
-    return (canvas.offsetHeight / schedule.totalTime) * min;
+    return (canvas.offsetHeight / (24 * 60)) * min;
 }
 
 function getTaskObjFromElem(elem) {
     for (let task of schedule.taskArr) {
         if (task.elem == elem) return task;
     }
+}
+
+function getDowntimeTotal() {
+    let total = 0;
+    for (let task of schedule.taskArr) {
+        if (task.downtime) total += task.duration;
+    }
+    return total;
 }
 
 //-- Drawing --//
@@ -58,7 +78,7 @@ function markTimeline(time, length) {
 }
 
 function drawTimeline() {
-    for (let i = schedule.startTime; i < schedule.endTime; i += 15) {    
+    for (let i = 0; i < 24 * 60; i += 15) {    
         if(i == 0) continue;
         
         if(i % 60 == 0) {
@@ -71,13 +91,17 @@ function drawTimeline() {
     }
 }
 
-// TODO: Timeline should draw all 24 hours (later reduced/increased by zoom/scroll handler), schedule start/end should set a marker to indicate day start/end instead
-
-// TODO: Time marker and task start are currently offset for some reason
+// -- Update Functions --//
 function drawCurrentTime() {
     let marker = document.getElementById("timeMarker");
     let tasklineTop = document.getElementById("timelineCanvas").getBoundingClientRect().top;
     marker.style.top = tasklineTop + window.scrollY + minToPx(getNowMinutes()) + 'px';
+
+    // Draw schedule start and stop
+    let start = document.getElementById("startMarker");
+    start.style.top = tasklineTop + window.scrollY + minToPx(schedule.startTime) + 'px';
+    let stop = document.getElementById("stopMarker");
+    stop.style.top = tasklineTop + window.scrollY + minToPx(schedule.endTime) + 'px';
 }
 
 function updateTasks() {
@@ -119,7 +143,7 @@ function updateTasks() {
                 taskBlock.style.position = 'absolute';
 
                 // TODO: Inner text should only appear when block is large enough to contain it
-                taskBlock.innerText = "Down Time";
+                // taskBlock.innerText = "Down Time";
 
                 let downtimeDur;
                 let downtimeStart;
@@ -142,7 +166,12 @@ function updateTasks() {
                 downtimeIndex = index;
             } else if (task.start > schedule.startTime && schedule.taskArr[index - 1].downtime) {
                 // Elongate downtime block while task head remains inactive
-                schedule.taskArr[index - 1].elem.style.height = minToPx(task.start - schedule.taskArr[index - 1].start) + 'px';
+                // Limited growth until schedule end limit, after which tasks aren't activateable anyway
+                let downtimeEnd = Math.min(task.start, schedule.endTime);
+                let downtimeDur = downtimeEnd - schedule.taskArr[index - 1].start;
+                schedule.taskArr[index - 1].duration = downtimeDur;
+                schedule.taskArr[index - 1].elem.style.height = minToPx(downtimeDur) + 'px';
+                
             }
             
         } else if(!task.downtime) {
@@ -155,6 +184,24 @@ function updateTasks() {
         // TODO: This should be async instead
         schedule.taskArr.splice(downtimeIndex, 0, newDowntime);
     }
+}
+
+function updateCount() {
+    let countElem = document.getElementById("downtimeCount");
+    let downtime  = getDowntimeTotal();
+    if (!downtime) {
+        countElem.innerText = '00:00';
+        return;
+    }
+    // Format to datetime style
+    // Hours
+    let hours = Math.floor(downtime / 60);
+    if (hours < 10) hours = '0' + hours;
+    // Minutes
+    let minutes = downtime - (hours*60);
+    if (minutes < 10) minutes = '0' + minutes;
+
+    countElem.innerText = `${hours}:${minutes}`;
 }
 
 // Task object type
@@ -197,14 +244,14 @@ function initAddFormHandler() {
         // Create/Customise new taskBlock div
         let taskBlock = document.createElement('div');
         taskBlock.className = "taskBlock";
-        taskBlock.innerText = taskName;
+        // taskBlock.innerText = taskName;
         taskBlock.style.position = 'absolute';
         taskBlock.style.height = minToPx(taskDur) + "px";
 
         // Task block vertical alignment
         let taskStart;
         let taskHead;
-        if (schedule.taskArr.length == 0) {
+        if (schedule.taskArr.length == 0 || schedule.taskArr[schedule.taskArr.length-1].finished) {
             taskStart = getNowMinutes(); 
             taskHead = true;
         } else {
@@ -238,8 +285,8 @@ function initPopupHandler() {
         let targetIndex = schedule.taskArr.indexOf(getTaskObjFromElem(target));
         let targetObj = schedule.taskArr[targetIndex];
 
-        // Finished tasks require no further actions
-        if (targetObj.finished) return;
+        // Finished/Downtime tasks require no further actions
+        if (targetObj.finished || targetObj.downtime) return;
         
         // 1. Create new popup div with necessary buttons
         let popup = document.createElement('div');
@@ -338,15 +385,27 @@ function initPopupHandler() {
     });
 }
 
+function initDebugHandler() {
+    document.addEventListener('keydown', function(e) {
+        if (e.code = 'ArrowDown') {
+            fakeTime += 15;
+        } else if (e.code = 'ArrowUp') {
+            fakeTime -= 15;
+        }
+    })
+}
+
 function initEventHandlers() {
     initAddMenuHandler();
     initAddFormHandler();
     initPopupHandler();
+    initDebugHandler();
 }
 
 function updateEvents() {
     drawCurrentTime();
     updateTasks();
+    updateCount();
     setTimeout(updateEvents, "1000");
 }
 

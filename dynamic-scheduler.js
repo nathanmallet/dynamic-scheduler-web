@@ -166,7 +166,7 @@ function updateTasks() {
 
                 let tasklineElem = document.getElementById("taskline");
                 tasklineElem.append(taskBlock);
-                let taskObj = new Task("Down Time", downtimeStart, downtimeDur, false, taskBlock);
+                let taskObj = new Task("Down Time", downtimeStart, downtimeDur, taskBlock);
                 taskObj.downtime = true;
                 newDowntime = taskObj;
                 downtimeIndex = index;
@@ -216,15 +216,15 @@ function updateCount() {
 
 // Task object type
 class Task {
-    constructor(name, start, duration, head, elem) {
+    constructor(name, start, duration, elem) {
         // Variables
         this.name = name;
         this.start = start;
         this.duration = duration;
         this.elem = elem;
-        this.head = head;
 
         // States
+        this.head = false;
         this.active = false;
         this.activeStart = 0;
         this.finished = false;
@@ -274,7 +274,8 @@ function initAddFormHandler() {
         // Append to the taskline element and ledger of current tasks
         let tasklineElem = document.getElementById("taskline");
         tasklineElem.append(taskBlock);
-        let taskObj = new Task(taskName, taskStart, taskDur, taskHead, taskBlock);
+        let taskObj = new Task(taskName, taskStart, taskDur, taskBlock);
+        taskObj.head = taskHead;
         schedule.taskArr.push(taskObj);
 
         // Prevent default (unwanted page reload)
@@ -285,6 +286,22 @@ function initAddFormHandler() {
     addTaskCancel.onclick = function() {
         document.getElementById("addMenu").style.visibility = 'hidden';
     }
+}
+
+function createTask(start, dur) {
+    let taskBlock = document.createElement('div');
+    taskBlock.className = "taskBlock";
+    // taskBlock.innerText = taskName;
+    taskBlock.style.position = 'absolute';
+    taskBlock.style.height = secToPx(dur) + "px";
+
+    // Task block vertical alignment
+    taskBlock.style.top = secToPx(start) + 'px';
+
+    // Append to the taskline element and ledger of current tasks
+    let tasklineElem = document.getElementById("taskline");
+    tasklineElem.append(taskBlock);
+    return new Task(taskName, start, dur, taskBlock);    
 }
 
 function initPopupHandler() {
@@ -330,9 +347,6 @@ function initPopupHandler() {
                     targetObj.elem.classList.add("activeTask");
                     activate.remove();
                     popup.remove();
-
-                    // TODO: Count between activation time and previous finish time for downtime 
-                    // Add to a visible down time counter? Add in real time as head task remains inactive?
                 })
             }
             else {
@@ -347,9 +361,22 @@ function initPopupHandler() {
                     deactivate.remove();
                     popup.remove();
 
-                    // TODO: On split divide task time into two new blocks
-                    // 1. Time used since activation becomes a new finished block
-                    // 2. Remaining time in task duration becomes a new incomplete head task
+                    // Split unfinished time into a new task block
+                    let index  = schedule.taskArr.indexOf(targetObj);
+                    let now = getNow();
+                    // New finished block
+                    let finishDur = now - targetObj.start;
+                    let finishBlock = createTask(targetObj.start, finishDur);
+                    finishBlock.finished = true;
+                    finishBlock.elem.classList.add("finishedTask");
+                    // New unfinished block
+                    let unfinishDur = targetObj.end - now;
+                    let unfinishBlock = createTask(now, unfinishDur);
+                    unfinishBlock.head = true;
+                    // Splice into taskArr together
+                    schedule.taskArr.splice(index, 1, finishBlock, unfinishBlock);
+                    // Remove original div from taskline
+                    targetObj.elem.remove();
                 })
             }
         }

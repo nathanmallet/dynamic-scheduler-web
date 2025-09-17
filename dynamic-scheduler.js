@@ -8,7 +8,7 @@ let schedule = {
     }
 }
 
-let debug = false;
+let debug = true;
 let fakeTime = schedule.startTime;
 
 function setupCanvas() {
@@ -45,14 +45,8 @@ function getNow() {
     return (+date.getHours() * 3600) + (+date.getMinutes() * 60) + +date.getSeconds();
 }
 
-function minToPx(min) {
-    // Number of minutes to canvas pixel size
-    let canvas = document.getElementById("timelineCanvas");
-    return (canvas.offsetHeight / (24 * 60)) * min;
-}
-
 function secToPx(sec) {
-    // Number of minutes to canvas pixel size
+    // Number of seconds to canvas pixel size
     let canvas = document.getElementById("timelineCanvas");
     return (canvas.offsetHeight / (24 * 60 * 60)) * sec;
 }
@@ -71,7 +65,7 @@ function getDowntimeTotal() {
     return total;
 }
 
-function secToTimestamp(sec, res) {
+function secToTimestamp(sec, res, form) {
     if (sec == 0) {
         if (res == 'min') {
             return "00:00";
@@ -89,25 +83,46 @@ function secToTimestamp(sec, res) {
     let seconds = sec - (hours*3600) - (minutes*60);
     if (seconds < 10) seconds = '0' + seconds;
 
+    // Time format
+    let outSuffix = '';
+    if (form == "ampm") {
+        if (hours > 12) {
+            hours = hours - 12;
+            outSuffix = " PM";
+        } else {
+            outSuffix = " AM";
+        }
+    }
+
+    // Resolution
+    let outString;
     if (res == 'min') {
-        return `${hours}:${minutes}`;
+        outString = `${hours}:${minutes}`;
     } else if (res == 'sec') {
-        return `${hours}:${minutes}:${seconds}`;
+        outString = `${hours}:${minutes}:${seconds}`;
     }    
+
+    return outString + outSuffix;
 }
 
 //-- Drawing --//
 function markTimeline(time, length) {
     let canvas = document.getElementById("timelineCanvas");
     let ctx = canvas.getContext('2d');
-    let lineY = minToPx(time);
+    let lineY = secToPx(time * 60);
     ctx.beginPath();
     ctx.moveTo(0, lineY);
     ctx.lineTo(length, lineY);
     ctx.lineWidth = 1;
     ctx.stroke();
+}
 
-    // TODO: At hour intervals, write the time as well
+function markTimestamp(time, length) {
+    let canvas = document.getElementById("timelineCanvas");
+    let ctx = canvas.getContext('2d');
+    let fontSize = 10;
+    ctx.font = `${fontSize}px serif`
+    ctx.fillText(secToTimestamp(time * 60, "min", "ampm"), length + 5, secToPx(time * 60) + (fontSize / 4));
 }
 
 function drawTimeline() {
@@ -116,6 +131,7 @@ function drawTimeline() {
         
         if(i % 60 == 0) {
             markTimeline(i, 20);
+            markTimestamp(i, 20);
         } else if (i % 30 == 0) {
             markTimeline(i, 10);
         } else if (i % 15 == 0) {
@@ -150,8 +166,8 @@ function updateMarkers() {
         finish.style.visibility = 'visible';
         finish.style.top = tasklineTop + window.scrollY + secToPx(finalTask.end) + 'px';
     }
-    // TODO: Write timestamp of estimated finish
-    finish.innerText = secToTimestamp(finalTask.end, 'min');
+    // Write timestamp of estimated finish
+    finish.innerText = secToTimestamp(finalTask.end, 'min', 'ampm');
 
 }
 
@@ -180,13 +196,13 @@ function updateTasks() {
                 if (schedule.taskArr.length-1 > index) schedule.taskArr[index + 1].head = true;
 
                 // Display Start and Stop times on finished tasks
-                task.elem.innerText = `${task.name}\t${secToTimestamp(task.start, 'min')}-${secToTimestamp(task.end, 'min')}`;
+                task.elem.innerText = `${task.name}\t${secToTimestamp(task.start, 'min', '24hour')}-${secToTimestamp(task.end, 'min', '24hour')}`;
 
                 continue;
             }
 
-            // TODO: Write a countdown till finish in active tasks
-            task.elem.innerText = `${task.name} - ${secToTimestamp(task.end - now, 'sec')}`;
+            // Write a countdown till finish in active tasks
+            task.elem.innerText = `${task.name} - ${secToTimestamp(task.end - now, 'sec', '24hour')}`;
 
             break;
             
@@ -248,7 +264,7 @@ function updateTasks() {
 }
 
 function updateCount() {
-    document.getElementById("downtimeCount").innerText = secToTimestamp(getDowntimeTotal(), 'sec');
+    document.getElementById("downtimeCount").innerText = secToTimestamp(getDowntimeTotal(), 'sec', '24hour');
 }
 
 // Task object type
@@ -450,6 +466,9 @@ function initPopupHandler() {
 
         edit.addEventListener('click', function() {
             // TODO: Require another popup menu (name, duration, index)
+            // 1. Double click name to edit name
+            // 2. Duration edit via drag? (in "edit" mode)
+            // 3. Click and drag or arrows keys in "edit" mode
         })
 
         cancel.addEventListener('click', function() {
@@ -458,6 +477,7 @@ function initPopupHandler() {
         })
 
         // TODO: Popup should be modal, requiring cancel button press (or 'esc' key press)
+        // Or clicking away closes it
 
     });
 }

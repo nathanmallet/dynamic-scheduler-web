@@ -8,7 +8,7 @@ let schedule = {
     }
 }
 
-let debug = true;
+let debug = false;
 let fakeTime = schedule.startTime;
 
 function setupCanvas() {
@@ -21,11 +21,13 @@ function setupCanvas() {
     let marker = document.getElementById("timeMarker");
     let start = document.getElementById("startMarker");
     let stop = document.getElementById("stopMarker");
+    let end = document.getElementById("finishMarker");
     let sched = document.getElementById("schedule");
 
     marker.style.width = sched.offsetWidth + 'px';
     start.style.width = sched.offsetWidth + 'px';
     stop.style.width = sched.offsetWidth + 'px';
+    end.style.width = sched.offsetWidth + 'px';
 
     // Add menu
     let menu = document.getElementById("addMenu");
@@ -69,6 +71,31 @@ function getDowntimeTotal() {
     return total;
 }
 
+function secToTimestamp(sec, res) {
+    if (sec == 0) {
+        if (res == 'min') {
+            return "00:00";
+        } else if (res == 'sec') {
+            return "00:00:00";
+        }
+    }
+
+    let hours = Math.floor(sec / 3600);
+    if (hours < 10) hours = '0' + hours;
+    // Minutes
+    let minutes = Math.floor((sec - (hours * 3600)) / 60);
+    if (minutes < 10) minutes = '0' + minutes;
+    // Seconds
+    let seconds = sec - (hours*3600) - (minutes*60);
+    if (seconds < 10) seconds = '0' + seconds;
+
+    if (res == 'min') {
+        return `${hours}:${minutes}`;
+    } else if (res == 'sec') {
+        return `${hours}:${minutes}:${seconds}`;
+    }    
+}
+
 //-- Drawing --//
 function markTimeline(time, length) {
     let canvas = document.getElementById("timelineCanvas");
@@ -98,7 +125,7 @@ function drawTimeline() {
 }
 
 // -- Update Functions --//
-function drawCurrentTime() {
+function updateMarkers() {
     let marker = document.getElementById("timeMarker");
     let tasklineTop = document.getElementById("timelineCanvas").getBoundingClientRect().top;
     marker.style.top = tasklineTop + window.scrollY + secToPx(getNow()) + 'px';
@@ -108,35 +135,63 @@ function drawCurrentTime() {
     start.style.top = tasklineTop + window.scrollY + secToPx(schedule.startTime) + 'px';
     let stop = document.getElementById("stopMarker");
     stop.style.top = tasklineTop + window.scrollY + secToPx(schedule.endTime) + 'px';
+
+    // Draw projected finish of final task
+    let finish = document.getElementById("finishMarker");
+    if (schedule.taskArr.length == 0) {
+        finish.style.visibility = 'hidden';
+        return;
+    }
+   
+    let finalTask = schedule.taskArr[schedule.taskArr.length - 1];
+    if (finalTask.finished || finalTask.downtime) {
+        finish.style.visibility = 'hidden';
+    } else {
+        finish.style.visibility = 'visible';
+        finish.style.top = tasklineTop + window.scrollY + secToPx(finalTask.end) + 'px';
+    }
+    // TODO: Write timestamp of estimated finish
+    finish.innerText = secToTimestamp(finalTask.end, 'min');
+
 }
 
 function updateTasks() {
     let first = true;
     let newDowntime = null;
     let downtimeIndex = 0;
+    let now = getNow();
+
     for (let task of schedule.taskArr) {
-        if (first && !task.downtime) {
+        if (first && !task.downtime && !task.finished) {
             // In case of head task removal, assign new head
             task.head = true;
             first = false;
         }
 
-        if(task.finished) {
+        if(task.finished || task.downtime) {
             continue;
         } else if(task.active) {
             // Check if we have surpassed limit to transition to "finished" state
-            if(task.activeStart + task.duration < getNow()) {
+            if(task.activeStart + task.duration < now) {
                 task.finished = true;
                 task.elem.classList.remove("activeTask");
                 task.elem.classList.add("finishedTask");
                 let index = schedule.taskArr.indexOf(task);
                 if (schedule.taskArr.length-1 > index) schedule.taskArr[index + 1].head = true;
+
+                // Display Start and Stop times on finished tasks
+                task.elem.innerText = `${task.name}\t${secToTimestamp(task.start, 'min')}-${secToTimestamp(task.end, 'min')}`;
+
                 continue;
             }
+
+            // TODO: Write a countdown till finish in active tasks
+            task.elem.innerText = `${task.name} - ${secToTimestamp(task.end - now, 'sec')}`;
+
             break;
             
         } else if(task.head) {
-            task.start = getNow();
+            task.start = now;
             task.elem.style.top = secToPx(task.start) + 'px';
 
             let index = schedule.taskArr.indexOf(task);
@@ -180,7 +235,7 @@ function updateTasks() {
                 
             }
             
-        } else if(!task.downtime) {
+        } else {
             task.start = schedule.taskArr[schedule.taskArr.indexOf(task) - 1].end;
             task.elem.style.top = secToPx(task.start) + 'px';
         }
@@ -193,25 +248,7 @@ function updateTasks() {
 }
 
 function updateCount() {
-    let countElem = document.getElementById("downtimeCount");
-    let downtime  = getDowntimeTotal();
-    if (!downtime) {
-        countElem.innerText = '00:00:00';
-        return;
-    }
-    // Format to datetime style
-    // Hours
-    let hours = Math.floor(downtime / 3600);
-    if (hours < 10) hours = '0' + hours;
-    // Minutes
-    let minutes = Math.floor((downtime - (hours * 3600)) / 60);
-    if (minutes < 10) minutes = '0' + minutes;
-    // Seconds
-    let seconds = downtime - (hours*3600) - (minutes*60);
-    if (seconds < 10) seconds = '0' + seconds;
-
-
-    countElem.innerText = `${hours}:${minutes}:${seconds}`;
+    document.getElementById("downtimeCount").innerText = secToTimestamp(getDowntimeTotal(), 'sec');
 }
 
 // Task object type
@@ -237,6 +274,22 @@ class Task {
 
 }
 
+function createTask(name, start, dur) {
+    let taskBlock = document.createElement('div');
+    taskBlock.className = "taskBlock";
+    taskBlock.innerText = name;
+    taskBlock.style.position = 'absolute';
+    taskBlock.style.height = secToPx(dur) + "px";
+
+    // Task block vertical alignment
+    taskBlock.style.top = secToPx(start) + 'px';
+
+    // Append to the taskline element and ledger of current tasks
+    let tasklineElem = document.getElementById("taskline");
+    tasklineElem.append(taskBlock);
+    return new Task(name, start, dur, taskBlock);    
+}
+
 //-- Event Handlers --//
 function initAddMenuHandler() {
     let addElem = document.getElementById("addButton");
@@ -252,10 +305,12 @@ function initAddFormHandler() {
         // Input as minutes, convert to seconds
         let taskDur = +form.elements.taskDur.value * 60;
 
+       // TODO: Use new createTask() function here
+
         // Create/Customise new taskBlock div
         let taskBlock = document.createElement('div');
         taskBlock.className = "taskBlock";
-        // taskBlock.innerText = taskName;
+        taskBlock.innerText = taskName;
         taskBlock.style.position = 'absolute';
         taskBlock.style.height = secToPx(taskDur) + "px";
 
@@ -286,22 +341,6 @@ function initAddFormHandler() {
     addTaskCancel.onclick = function() {
         document.getElementById("addMenu").style.visibility = 'hidden';
     }
-}
-
-function createTask(start, dur) {
-    let taskBlock = document.createElement('div');
-    taskBlock.className = "taskBlock";
-    // taskBlock.innerText = taskName;
-    taskBlock.style.position = 'absolute';
-    taskBlock.style.height = secToPx(dur) + "px";
-
-    // Task block vertical alignment
-    taskBlock.style.top = secToPx(start) + 'px';
-
-    // Append to the taskline element and ledger of current tasks
-    let tasklineElem = document.getElementById("taskline");
-    tasklineElem.append(taskBlock);
-    return new Task(taskName, start, dur, taskBlock);    
 }
 
 function initPopupHandler() {
@@ -366,12 +405,12 @@ function initPopupHandler() {
                     let now = getNow();
                     // New finished block
                     let finishDur = now - targetObj.start;
-                    let finishBlock = createTask(targetObj.start, finishDur);
+                    let finishBlock = createTask(targetObj.name, targetObj.start, finishDur);
                     finishBlock.finished = true;
                     finishBlock.elem.classList.add("finishedTask");
                     // New unfinished block
                     let unfinishDur = targetObj.end - now;
-                    let unfinishBlock = createTask(now, unfinishDur);
+                    let unfinishBlock = createTask(targetObj.name, now, unfinishDur);
                     unfinishBlock.head = true;
                     // Splice into taskArr together
                     schedule.taskArr.splice(index, 1, finishBlock, unfinishBlock);
@@ -441,10 +480,10 @@ function initEventHandlers() {
 }
 
 function updateEvents() {
-    drawCurrentTime();
+    updateMarkers();
     updateTasks();
     updateCount();
-    setTimeout(updateEvents, "1000");
+    setTimeout(updateEvents, "500");
 }
 
 //-- Program entry --//

@@ -321,16 +321,7 @@ function initAddFormHandler() {
         // Input as minutes, convert to seconds
         let taskDur = +form.elements.taskDur.value * 60;
 
-       // TODO: Use new createTask() function here
-
-        // Create/Customise new taskBlock div
-        let taskBlock = document.createElement('div');
-        taskBlock.className = "taskBlock";
-        taskBlock.innerText = taskName;
-        taskBlock.style.position = 'absolute';
-        taskBlock.style.height = secToPx(taskDur) + "px";
-
-        // Task block vertical alignment
+        // Calculate task position details
         let taskStart;
         let taskHead;
         if (schedule.taskArr.length == 0 || schedule.taskArr[schedule.taskArr.length-1].finished) {
@@ -340,14 +331,16 @@ function initAddFormHandler() {
             taskStart = schedule.taskArr[schedule.taskArr.length - 1].end;
             taskHead = false;
         }
-        taskBlock.style.top = secToPx(taskStart) + 'px';
+
+        // Create new task, assign details
+        let newTask = createTask(taskName, taskStart, taskDur);
+        newTask.head = taskHead;
+        newTask.elem.style.top = secToPx(taskStart) + 'px';
 
         // Append to the taskline element and ledger of current tasks
         let tasklineElem = document.getElementById("taskline");
-        tasklineElem.append(taskBlock);
-        let taskObj = new Task(taskName, taskStart, taskDur, taskBlock);
-        taskObj.head = taskHead;
-        schedule.taskArr.push(taskObj);
+        tasklineElem.append(newTask.elem);
+        schedule.taskArr.push(newTask);
 
         // Prevent default (unwanted page reload)
         return false;
@@ -503,7 +496,7 @@ function updateEvents() {
     updateMarkers();
     updateTasks();
     updateCount();
-    setTimeout(updateEvents, "500");
+    setTimeout(updateEvents, "100");
 }
 
 //-- Program entry --//

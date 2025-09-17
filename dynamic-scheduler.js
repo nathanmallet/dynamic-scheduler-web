@@ -8,7 +8,7 @@ let schedule = {
     }
 }
 
-let debug = true;
+let debug = false;
 let fakeTime = schedule.startTime;
 
 function setupCanvas() {
@@ -138,6 +138,32 @@ function drawTimeline() {
             markTimeline(i, 5);
         }
     }
+}
+
+function getEditIndex() {
+    for (let task of schedule.taskArr) {
+        if (task.edit == true) return schedule.taskArr.indexOf(task);
+    }
+    return -1;
+}
+
+function swapTask(index, dir) {
+    let base = Object.assign({}, schedule.taskArr[index]);
+    let temp = Object.assign({}, schedule.taskArr[index + dir]);
+
+    // Handle swapping of head task
+    if (base.head) {
+        base.head = false;
+        temp.head = true;
+    } else if (temp.head) {
+        temp.head = false;
+        base.head = true;
+    }
+
+    Object.assign(schedule.taskArr[index + dir], base);
+    Object.assign(schedule.taskArr[index], temp);
+
+    return index + dir;
 }
 
 // -- Update Functions --//
@@ -282,6 +308,7 @@ class Task {
         this.activeStart = 0;
         this.finished = false;
         this.downtime = false;
+        this.edit = false;
     }
 
     get end() {
@@ -352,6 +379,17 @@ function initAddFormHandler() {
     }
 }
 
+function editKeyListener(e) {
+    let index
+    let dir;
+    if (e.code == "ArrowUp") {
+        dir = -1;
+    } else if (e.code == "ArrowDown") {
+    dir = 1;
+    }
+    index = swapTask(getEditIndex(), dir);
+}
+
 function initPopupHandler() {
     let tasklineElem = document.getElementById("taskline");
     tasklineElem.addEventListener('click', function(e) {
@@ -364,22 +402,10 @@ function initPopupHandler() {
         // Finished/Downtime tasks require no further actions
         if (targetObj.finished || targetObj.downtime) return;
         
-        // 1. Create new popup div with necessary buttons
+        // Create new popup div
         let popup = document.createElement('div');
         popup.className = "popup";
         popup.style.position = "absolute";
-
-        // Remove button
-        let remove = document.createElement('input');
-        remove.type = "button";
-        remove.value = "Remove";
-        popup.append(remove);
-
-        // Edit button
-        let edit = document.createElement('input');
-        edit.type = "button";
-        edit.value = "Edit";
-        popup.append(edit);
 
         // Activate/Deactivate buttons
         if(targetObj.head) {
@@ -429,21 +455,12 @@ function initPopupHandler() {
             }
         }
 
-        // Cancel Button
-        let cancel = document.createElement('input');
-        cancel.type = "button";
-        cancel.value = "Cancel";
-        popup.append(cancel);
+        // Remove button
+        let remove = document.createElement('input');
+        remove.type = "button";
+        remove.value = "Remove";
+        popup.append(remove);
 
-        tasklineElem.append(popup);
-
-        // 2. Move the relevant popup to click position
-        let tlBox = tasklineElem.getBoundingClientRect();
-        popup.style.top = e.clientY - tlBox.top + 'px';
-        popup.style.left = e.clientX - tlBox.left + 'px';
-
-        // 3. Instatiate new div's button handlers with reference to target (to act on for edit/remove)
-        // Remove button handler
         remove.addEventListener('click', function() {
             target.remove();
             remove.remove();
@@ -457,17 +474,60 @@ function initPopupHandler() {
             updateTasks();
         });
 
-        edit.addEventListener('click', function() {
-            // TODO: Require another popup menu (name, duration, index)
-            // 1. Double click name to edit name
-            // 2. Duration edit via drag? (in "edit" mode)
-            // 3. Click and drag or arrows keys in "edit" mode
-        })
+        let editIndex = getEditIndex();
+        if (!targetObj.active && editIndex == -1 || editIndex == targetIndex) {
+            if (!targetObj.edit) {
+                // Edit button
+                let edit = document.createElement('input');
+                edit.type = "button";
+                edit.value = "Edit";
+                popup.append(edit);
+
+                edit.addEventListener('click', function() {
+                    // TODO
+                    // 1. Double click name to edit name
+                    // 2. Duration edit via drag? (in "edit" mode)
+                    // 3. Click and drag in "edit" mode
+                    
+                    targetObj.edit = true;
+                    edit.remove();
+                    popup.remove();
+                    target.classList.add("editTask");
+                    document.addEventListener('keydown', editKeyListener);           
+                })
+            } else {
+                // Done button
+                let done = document.createElement('input');
+                done.type = "button";
+                done.value = "Done";
+                popup.append(done);
+
+                done.addEventListener('click', function() {
+                    targetObj.edit = false;
+                    target.classList.remove("editTask");
+                    done.remove();
+                    popup.remove();
+                    document.removeEventListener('keydown', editKeyListener);
+                })
+            }
+        }
+
+        // Cancel Button
+        let cancel = document.createElement('input');
+        cancel.type = "button";
+        cancel.value = "Cancel";
+        popup.append(cancel);
 
         cancel.addEventListener('click', function() {
             cancel.remove();
             popup.remove();
         })
+
+        // Move the popup to click position and display
+        let tlBox = tasklineElem.getBoundingClientRect();
+        popup.style.top = e.clientY - tlBox.top + 'px';
+        popup.style.left = e.clientX - tlBox.left + 'px';
+        tasklineElem.append(popup);
 
         // TODO: Popup should be modal, requiring cancel button press (or 'esc' key press)
         // Or clicking away closes it
@@ -477,10 +537,10 @@ function initPopupHandler() {
 
 function initDebugHandler() {
     document.addEventListener('keydown', function(e) {
-        if (e.code = 'ArrowDown') {
-            fakeTime += 15 * 60;
-        } else if (e.code = 'ArrowUp') {
-            fakeTime -= 15 * 60;
+        if (e.code = 'j') {
+            fakeTime += (15 * 60);
+        } else if (e.code = 'k') {
+            fakeTime -= (15 * 60);
         }
     })
 }

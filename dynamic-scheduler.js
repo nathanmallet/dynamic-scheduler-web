@@ -30,9 +30,12 @@ function setupCanvas() {
     stop.style.width = sched.offsetWidth + 'px';
     end.style.width = sched.offsetWidth + 'px';
 
-    // Add menu
+    // Menus
     let menu = document.getElementById("addMenu");
     menu.style.top = 40 + 'px';
+    let edit = document.getElementById("editMenu");
+    edit.style.top = 40 + 'px';
+
 }
 
 //-- Utility --//
@@ -389,16 +392,69 @@ function initAddFormHandler() {
     }
 }
 
-function editKeyListener(e) {
+function initEditFormHandler() {
+    let form = document.forms.editForm;
+    form.onsubmit = function() {
+        let taskName = form.elements.taskName.value;
+        // Input as minutes, convert to seconds
+        let taskDur = +form.elements.taskDur.value * 60;
+
+        let targetObj = schedule.taskArr[getEditIndex()];
+        
+        // Update name field
+        if (taskName != '') {
+            targetObj.name = taskName;
+            targetObj.elem.innerText = taskName;
+        }
+       
+        // Update duration field
+        // TODO: Allow edit of head/active task, but cannot reduce duration lower than current point in time
+        if (taskDur != '') {
+            targetObj.duration = taskDur;
+            targetObj.elem.style.height = secToPx(taskDur) + 'px';
+        }
+
+        // Turn off edit flag
+        targetObj.edit = false;
+
+        // Hide edit menu after submit
+        document.getElementById("editMenu").style.visibility = 'hidden';
+        schedule.popup = null;
+
+        // Prevent default (unwanted page reload)
+        return false;
+    }
+
+    let editTaskCancel = document.getElementById("editTaskCancel");
+    editTaskCancel.onclick = function() {
+        document.getElementById("editMenu").style.visibility = 'hidden';
+        schedule.popup = null;
+
+        let targetObj = schedule.taskArr[getEditIndex()];
+
+        // Turn off edit flag
+        targetObj.edit = false;
+    }
+}
+
+function moveKeyListener(e) {
     let dir;
+    let index = getEditIndex();
     if (e.code == "ArrowUp") {
         dir = -1;
     } else if (e.code == "ArrowDown") {
         dir = 1;
+    } else if (e.code == "Space") {
+        // Space to exit "edit" mode
+        let editTask = schedule.taskArr[index]
+        editTask.edit = false;
+        editTask.elem.classList.remove("editTask");
+        document.removeEventListener('keydown', moveKeyListener);
+        return;
     }
 
     // Do not exceed taskArr bounds, prevent swapping of active head task
-    let index = getEditIndex();
+   
     if (index + dir > schedule.taskArr.length -1 || index + dir < getHeadIndex() || (dir == -1 && schedule.taskArr[index - 1].active)) {
         return;
     }
@@ -516,30 +572,30 @@ function initPopupHandler() {
         let editIndex = getEditIndex();
         if (!targetObj.active && editIndex == -1 || editIndex == targetIndex) {
             if (!targetObj.edit) {
-                // Edit button
-                let edit = document.createElement('input');
-                edit.type = "button";
-                edit.value = "Edit";
-                popup.append(edit);
+                // Edit Mode button
+                let editMode = document.createElement('input');
+                editMode.type = "button";
+                editMode.value = "Edit Mode";
+                popup.append(editMode);
                 
-                // TODO
+                // TODO: Edit mode
                 // 1. Double click name to edit name
                 // 2. Duration edit via drag? (in "edit" mode)
                 // 3. Click and drag in "edit" mode
 
-                edit.addEventListener('click', function() {                    
+                editMode.addEventListener('click', function() {                    
                     targetObj.edit = true;
-                    edit.remove();
+                    editMode.remove();
                     popup.remove();
                     schedule.popup = null;
                     target.classList.add("editTask");
-                    document.addEventListener('keydown', editKeyListener);           
+                    document.addEventListener('keydown', moveKeyListener);           
                 })
             } else {
                 // Done button
                 let done = document.createElement('input');
                 done.type = "button";
-                done.value = "Done";
+                done.value = "Exit Edit Mode";
                 popup.append(done);
 
                 done.addEventListener('click', function() {
@@ -548,10 +604,25 @@ function initPopupHandler() {
                     done.remove();
                     popup.remove();
                     schedule.popup = null;
-                    document.removeEventListener('keydown', editKeyListener);
+                    document.removeEventListener('keydown', moveKeyListener);
                 })
             }
         }
+
+        // Edit Details Button
+        let editDetails = document.createElement('input');
+        editDetails.type = "button";
+        editDetails.value = "Edit Details";
+        popup.append(editDetails);
+
+        editDetails.addEventListener('click', function() {
+            editDetails.remove();
+            popup.remove();
+            let editMenuElem = document.getElementById("editMenu");
+            editMenuElem.style.visibility = 'visible';
+            schedule.popup = editMenuElem;
+            targetObj.edit = true;
+        })
 
         // Cancel Button
         let cancel = document.createElement('input');
@@ -586,7 +657,6 @@ function initEscapeHandler() {
     })
 }
 
-
 function initDebugHandler() {
     document.addEventListener('keydown', function(e) {
         if (e.code == 'j') {
@@ -600,9 +670,11 @@ function initDebugHandler() {
 function initEventHandlers() {
     initAddMenuHandler();
     initAddFormHandler();
+    initEditFormHandler();
     initPopupHandler();
-    initDebugHandler();
     initEscapeHandler();
+
+    if (debug) initDebugHandler();
 }
 
 function updateEvents() {

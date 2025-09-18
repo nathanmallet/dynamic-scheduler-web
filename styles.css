@@ -60,7 +60,7 @@ input, label {
     z-index: 1;
 }
 
-#addMenu {
+#addMenu, #editMenu {
     visibility: hidden;
 }
 

@@ -38,7 +38,20 @@
                 <input type="submit" id="addTaskSubmit" value="Submit">
                 <input type="button" id="addTaskCancel" value="Cancel">
             </form>
-        </div>    
+        </div>
+        
+        <div id="editMenu" class="popup">
+            <form name="editForm" id="editForm">
+                <label for="taskName">Name</label>
+                <input type="text" id="taskName" name="taskName" placeholder="Task Name">
+                <br>
+                <label for="taskDur">Duration</label>
+                <input type="number" id="taskDur" name="taskDur" placeholder="Duration (Minutes)">
+                <br>
+                <input type="submit" id="editTaskSubmit" value="Submit">
+                <input type="button" id="editTaskCancel" value="Cancel">
+            </form>
+        </div>
 
         <script src="dynamic-scheduler.js"></script> 
     </main>

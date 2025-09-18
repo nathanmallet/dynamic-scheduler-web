@@ -1,14 +1,15 @@
 //-- GLOBAL --//
 let schedule = {
     taskArr: [],
-    startTime: 9 * 60 * 60,
-    endTime: 21 * 60 * 60,
+    startTime: 6.5 * 60 * 60,
+    endTime: 22.5 * 60 * 60,
     get totalTime() {
         return this.endTime - this.startTime;
-    }
+    },
+    popup: null,
 }
 
-let debug = false;
+let debug = true;
 let fakeTime = schedule.startTime;
 
 function setupCanvas() {
@@ -162,8 +163,13 @@ function swapTask(index, dir) {
 
     Object.assign(schedule.taskArr[index + dir], base);
     Object.assign(schedule.taskArr[index], temp);
+}
 
-    return index + dir;
+function getHeadIndex() {
+    for (let task of schedule.taskArr) {
+        if (task.head == true) return schedule.taskArr.indexOf(task);
+    }
+    return -1;
 }
 
 // -- Update Functions --//
@@ -215,29 +221,22 @@ function updateTasks() {
         } else if(task.active) {
             // Check if we have surpassed limit to transition to "finished" state
             if(task.activeStart + task.duration < now) {
-                task.finished = true;
-                task.elem.classList.remove("activeTask");
-                task.elem.classList.add("finishedTask");
+                finishTask(task);
                 let index = schedule.taskArr.indexOf(task);
                 if (schedule.taskArr.length-1 > index) schedule.taskArr[index + 1].head = true;
-
-                // Display Start and Stop times on finished tasks
-                task.elem.innerText = `${task.name}\t${secToTimestamp(task.start, 'min', '24hour')}-${secToTimestamp(task.end, 'min', '24hour')}`;
 
                 continue;
             }
 
             // Write a countdown till finish in active tasks
             task.elem.innerText = `${task.name} - ${secToTimestamp(task.end - now, 'sec', '24hour')}`;
-
-            break;
             
         } else if(task.head) {
             task.start = now;
             task.elem.style.top = secToPx(task.start) + 'px';
 
             let index = schedule.taskArr.indexOf(task);
-            // If preceding downtime block doesn't yet exist and we are passed the schedule start time
+            // If preceding downtime block doesn't yet exist and we are past the schedule start time
             if (task.start > schedule.startTime && (index == 0 || schedule.taskArr[index - 1].downtime == false)) {
                 // New downtime task block
                 let taskBlock = document.createElement('div');
@@ -333,11 +332,21 @@ function createTask(name, start, dur) {
     return new Task(name, start, dur, taskBlock);    
 }
 
+function finishTask(task) {
+    task.finished = true;
+    task.elem.classList.remove("activeTask");
+    task.elem.classList.add("finishedTask");
+    task.elem.innerText = `${task.name}\t${secToTimestamp(task.start, 'min', '24hour')}-${secToTimestamp(task.end, 'min', '24hour')}`;
+}
+
 //-- Event Handlers --//
 function initAddMenuHandler() {
     let addElem = document.getElementById("addButton");
     addElem.onclick = function() {
-        document.getElementById("addMenu").style.visibility = 'visible';
+        if (schedule.popup) return;
+        let addMenuElem = document.getElementById("addMenu");
+        addMenuElem.style.visibility = 'visible';
+        schedule.popup = addMenuElem;
     }
 }
 
@@ -376,18 +385,25 @@ function initAddFormHandler() {
     let addTaskCancel = document.getElementById("addTaskCancel");
     addTaskCancel.onclick = function() {
         document.getElementById("addMenu").style.visibility = 'hidden';
+        schedule.popup = null;
     }
 }
 
 function editKeyListener(e) {
-    let index
     let dir;
     if (e.code == "ArrowUp") {
         dir = -1;
     } else if (e.code == "ArrowDown") {
-    dir = 1;
+        dir = 1;
     }
-    index = swapTask(getEditIndex(), dir);
+
+    // Do not exceed taskArr bounds, prevent swapping of active head task
+    let index = getEditIndex();
+    if (index + dir > schedule.taskArr.length -1 || index + dir < getHeadIndex() || (dir == -1 && schedule.taskArr[index - 1].active)) {
+        return;
+    }
+
+    swapTask(index, dir);
 }
 
 function initPopupHandler() {
@@ -396,16 +412,20 @@ function initPopupHandler() {
         // NOTE: Be careful if you add more types of divs to the taskline area, we'll trigger this event
         let target = e.target.closest('div');
         if (!target) return;
-        let targetIndex = schedule.taskArr.indexOf(getTaskObjFromElem(target));
-        let targetObj = schedule.taskArr[targetIndex];
+        let targetObj =  getTaskObjFromElem(target);
+        let targetIndex = schedule.taskArr.indexOf(targetObj);
 
         // Finished/Downtime tasks require no further actions
         if (targetObj.finished || targetObj.downtime) return;
-        
+
+        // Check status of visible popups
+        if (schedule.popup) return;
+
         // Create new popup div
         let popup = document.createElement('div');
         popup.className = "popup";
         popup.style.position = "absolute";
+        schedule.popup = popup;
 
         // Activate/Deactivate buttons
         if(targetObj.head) {
@@ -421,6 +441,7 @@ function initPopupHandler() {
                     targetObj.elem.classList.add("activeTask");
                     activate.remove();
                     popup.remove();
+                    schedule.popup = null;
                 })
             }
             else {
@@ -434,46 +455,64 @@ function initPopupHandler() {
                     targetObj.elem.classList.remove("activeTask");
                     deactivate.remove();
                     popup.remove();
+                    schedule.popup = null;
 
                     // Split unfinished time into a new task block
                     let index  = schedule.taskArr.indexOf(targetObj);
                     let now = getNow();
-                    // New finished block
-                    let finishDur = now - targetObj.start;
-                    let finishBlock = createTask(targetObj.name, targetObj.start, finishDur);
-                    finishBlock.finished = true;
-                    finishBlock.elem.classList.add("finishedTask");
-                    // New unfinished block
+                    
+                    // Calculate unfinished duration before we edit targetObj.duration
                     let unfinishDur = targetObj.end - now;
+
+                    // Finish active task
+                    targetObj.duration = now - targetObj.start;
+                    targetObj.elem.style.height = secToPx(targetObj.duration) + 'px';
+                    finishTask(targetObj);
+
+                    // Add new task for unfinished time
                     let unfinishBlock = createTask(targetObj.name, now, unfinishDur);
                     unfinishBlock.head = true;
-                    // Splice into taskArr together
-                    schedule.taskArr.splice(index, 1, finishBlock, unfinishBlock);
-                    // Remove original div from taskline
-                    targetObj.elem.remove();
+                    // Splice into taskArr
+                    schedule.taskArr.splice(index + 1, 0, unfinishBlock);
                 })
             }
         }
 
-        // Remove button
-        let remove = document.createElement('input');
-        remove.type = "button";
-        remove.value = "Remove";
-        popup.append(remove);
+        if (!targetObj.active) {
+            // Remove button
+            let remove = document.createElement('input');
+            remove.type = "button";
+            remove.value = "Remove";
+            popup.append(remove);
 
-        remove.addEventListener('click', function() {
-            target.remove();
-            remove.remove();
-            popup.remove();
-            for (let task of schedule.taskArr) {
-                if (target == task.elem) {
-                    schedule.taskArr.splice(targetIndex, 1);
+            remove.addEventListener('click', function() {
+                target.remove();
+                remove.remove();
+                popup.remove();
+                schedule.popup = null;
+                for (let task of schedule.taskArr) {
+                    if (target == task.elem) {
+                        schedule.taskArr.splice(targetIndex, 1);
+                    }
                 }
-            }
-            // TODO: We should be able to update just a portion after the removal here for effeciency
-            updateTasks();
-        });
+            });
+        } else {
+            // Finish button (stop an active task early)
+            let finish = document.createElement('input');
+            finish.type = "button";
+            finish.value = "Finish";
+            popup.append(finish);
 
+            finish.addEventListener('click', function() {
+                finish.remove();
+                popup.remove();
+                schedule.popup = null;
+                targetObj.duration = getNow() - targetObj.start;
+                targetObj.elem.style.height = secToPx(targetObj.duration) + 'px';
+                finishTask(targetObj);
+            });
+        }
+        
         let editIndex = getEditIndex();
         if (!targetObj.active && editIndex == -1 || editIndex == targetIndex) {
             if (!targetObj.edit) {
@@ -482,16 +521,17 @@ function initPopupHandler() {
                 edit.type = "button";
                 edit.value = "Edit";
                 popup.append(edit);
+                
+                // TODO
+                // 1. Double click name to edit name
+                // 2. Duration edit via drag? (in "edit" mode)
+                // 3. Click and drag in "edit" mode
 
-                edit.addEventListener('click', function() {
-                    // TODO
-                    // 1. Double click name to edit name
-                    // 2. Duration edit via drag? (in "edit" mode)
-                    // 3. Click and drag in "edit" mode
-                    
+                edit.addEventListener('click', function() {                    
                     targetObj.edit = true;
                     edit.remove();
                     popup.remove();
+                    schedule.popup = null;
                     target.classList.add("editTask");
                     document.addEventListener('keydown', editKeyListener);           
                 })
@@ -507,6 +547,7 @@ function initPopupHandler() {
                     target.classList.remove("editTask");
                     done.remove();
                     popup.remove();
+                    schedule.popup = null;
                     document.removeEventListener('keydown', editKeyListener);
                 })
             }
@@ -521,6 +562,7 @@ function initPopupHandler() {
         cancel.addEventListener('click', function() {
             cancel.remove();
             popup.remove();
+            schedule.popup = null;
         })
 
         // Move the popup to click position and display
@@ -535,11 +577,21 @@ function initPopupHandler() {
     });
 }
 
+function initEscapeHandler() {
+    document.addEventListener('keydown', function(e) {
+        if (e.code == "Escape") {
+            schedule.popup.style.visibility = "hidden";
+            schedule.popup = null;
+        }
+    })
+}
+
+
 function initDebugHandler() {
     document.addEventListener('keydown', function(e) {
-        if (e.code = 'j') {
+        if (e.code == 'j') {
             fakeTime += (15 * 60);
-        } else if (e.code = 'k') {
+        } else if (e.code == 'k') {
             fakeTime -= (15 * 60);
         }
     })
@@ -550,13 +602,14 @@ function initEventHandlers() {
     initAddFormHandler();
     initPopupHandler();
     initDebugHandler();
+    initEscapeHandler();
 }
 
 function updateEvents() {
     updateMarkers();
     updateTasks();
     updateCount();
-    setTimeout(updateEvents, "100");
+    setTimeout(updateEvents, "500");
 }
 
 //-- Program entry --//

@@ -9,7 +9,7 @@ let schedule = {
     popup: null,
 }
 
-let debug = true;
+let debug = false;
 let fakeTime = schedule.startTime;
 
 function setupCanvas() {
@@ -252,7 +252,7 @@ function updateTasks() {
 
                 let downtimeDur;
                 let downtimeStart;
-                if (index == 0) {
+                if (index == 0 || schedule.taskArr[index - 1].end < schedule.startTime) {
                     // Downtime for tasks with no previous tasks, is from schedule start time
                     downtimeStart = schedule.startTime;
                 } else {
@@ -346,7 +346,9 @@ function finishTask(task) {
 function initAddMenuHandler() {
     let addElem = document.getElementById("addButton");
     addElem.onclick = function() {
-        if (schedule.popup) return;
+        if (schedule.popup) {
+            schedule.popup.style.visibility = 'hidden';
+        }
         let addMenuElem = document.getElementById("addMenu");
         addMenuElem.style.visibility = 'visible';
         schedule.popup = addMenuElem;
@@ -454,7 +456,6 @@ function moveKeyListener(e) {
     }
 
     // Do not exceed taskArr bounds, prevent swapping of active head task
-   
     if (index + dir > schedule.taskArr.length -1 || index + dir < getHeadIndex() || (dir == -1 && schedule.taskArr[index - 1].active)) {
         return;
     }
@@ -474,14 +475,20 @@ function initPopupHandler() {
         // Finished/Downtime tasks require no further actions
         if (targetObj.finished || targetObj.downtime) return;
 
-        // Check status of visible popups
-        if (schedule.popup) return;
-
         // Create new popup div
         let popup = document.createElement('div');
         popup.className = "popup";
         popup.style.position = "absolute";
+
+        if (schedule.popup) {
+            if (schedule.popup.classList.contains("taskMenu")) {
+                schedule.popup.remove();
+            } else {
+                schedule.popup.style.visibility = 'hidden';
+            }
+        }
         schedule.popup = popup;
+
 
         // Activate/Deactivate buttons
         if(targetObj.head) {
@@ -641,16 +648,12 @@ function initPopupHandler() {
         popup.style.top = e.clientY - tlBox.top + 'px';
         popup.style.left = e.clientX - tlBox.left + 'px';
         tasklineElem.append(popup);
-
-        // TODO: Popup should be modal, requiring cancel button press (or 'esc' key press)
-        // Or clicking away closes it
-
     });
 }
 
 function initEscapeHandler() {
     document.addEventListener('keydown', function(e) {
-        if (e.code == "Escape") {
+        if (e.code == "Escape" && schedule.popup) {
             schedule.popup.style.visibility = "hidden";
             schedule.popup = null;
         }
@@ -659,9 +662,9 @@ function initEscapeHandler() {
 
 function initDebugHandler() {
     document.addEventListener('keydown', function(e) {
-        if (e.code == 'j') {
+        if (e.key == 'j') {
             fakeTime += (15 * 60);
-        } else if (e.code == 'k') {
+        } else if (e.key == 'k') {
             fakeTime -= (15 * 60);
         }
     })
@@ -681,7 +684,7 @@ function updateEvents() {
     updateMarkers();
     updateTasks();
     updateCount();
-    setTimeout(updateEvents, "500");
+    setTimeout(updateEvents, "100");
 }
 
 //-- Program entry --//

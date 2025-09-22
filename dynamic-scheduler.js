@@ -152,6 +152,12 @@ function getEditIndex() {
 }
 
 function swapTask(index, dir) {
+
+    // Do not exceed taskArr bounds, prevent swapping of active head task
+    if ((dir == 1 && index == schedule.taskArr.length - 1)  || (dir == -1 && (index == getHeadIndex() || schedule.taskArr[index + dir].active))) {
+        return;
+    }  
+
     let base = Object.assign({}, schedule.taskArr[index]);
     let temp = Object.assign({}, schedule.taskArr[index + dir]);
 
@@ -168,11 +174,23 @@ function swapTask(index, dir) {
     Object.assign(schedule.taskArr[index], temp);
 }
 
+function swapEdit(index, dir) {
+
+    // Do not exceed taskArr bounds, prevent swapping of active head task
+    if ((dir == 1 && index == schedule.taskArr.length - 1)  || (dir == -1 && (index == getHeadIndex() || schedule.taskArr[index + dir].active))) {
+        return;
+    }  
+    schedule.taskArr[index].edit = false;
+    schedule.taskArr[index].elem.classList.remove("editTask"); 
+    schedule.taskArr[index + dir].edit = true;
+    schedule.taskArr[index + dir].elem.classList.add("editTask");
+}
+
 function getHeadIndex() {
     for (let task of schedule.taskArr) {
         if (task.head == true) return schedule.taskArr.indexOf(task);
     }
-    return -1;
+    return null;
 }
 
 // -- Update Functions --//
@@ -337,6 +355,7 @@ function createTask(name, start, dur) {
 
 function finishTask(task) {
     task.finished = true;
+    task.head = false;
     task.elem.classList.remove("activeTask");
     task.elem.classList.add("finishedTask");
     task.elem.innerText = `${task.name}\t${secToTimestamp(task.start, 'min', '24hour')}-${secToTimestamp(task.end, 'min', '24hour')}`;
@@ -440,27 +459,28 @@ function initEditFormHandler() {
 }
 
 function moveKeyListener(e) {
-    let dir;
     let index = getEditIndex();
-    if (e.code == "ArrowUp") {
-        dir = -1;
-    } else if (e.code == "ArrowDown") {
-        dir = 1;
-    } else if (e.code == "Space") {
-        // Space to exit "edit" mode
-        let editTask = schedule.taskArr[index]
-        editTask.edit = false;
-        editTask.elem.classList.remove("editTask");
-        document.removeEventListener('keydown', moveKeyListener);
-        return;
+    switch (e.code) {
+        case "ArrowUp":
+            swapTask(index, -1);
+            break;
+        case "ArrowDown":
+            swapTask(index, 1);
+            break;
+        case "ArrowLeft":
+            swapEdit(index, -1);
+            break;
+        case "ArrowRight":
+            swapEdit(index, 1);
+            break;
+        case "Space":
+            // Space to exit "edit" mode
+            let editTask = schedule.taskArr[index]
+            editTask.edit = false;
+            editTask.elem.classList.remove("editTask");
+            document.removeEventListener('keydown', moveKeyListener);
+            break;
     }
-
-    // Do not exceed taskArr bounds, prevent swapping of active head task
-    if (index + dir > schedule.taskArr.length -1 || index + dir < getHeadIndex() || (dir == -1 && schedule.taskArr[index - 1].active)) {
-        return;
-    }
-
-    swapTask(index, dir);
 }
 
 function initPopupHandler() {

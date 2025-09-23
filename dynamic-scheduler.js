@@ -117,41 +117,6 @@ function secToTimestamp(sec, res, form) {
     return outString + outSuffix;
 }
 
-//-- Drawing --//
-function markTimeline(time, length) {
-    let canvas = document.getElementById("timelineCanvas");
-    let ctx = canvas.getContext('2d');
-    let lineY = secToPx(time * 60);
-    ctx.beginPath();
-    ctx.moveTo(0, lineY);
-    ctx.lineTo(length, lineY);
-    ctx.lineWidth = 1;
-    ctx.stroke();
-}
-
-function markTimestamp(time, length) {
-    let canvas = document.getElementById("timelineCanvas");
-    let ctx = canvas.getContext('2d');
-    let fontSize = 10;
-    ctx.font = `${fontSize}px serif`
-    ctx.fillText(secToTimestamp(time * 60, "min", "ampm"), length + 5, secToPx(time * 60) + (fontSize / 4));
-}
-
-function drawTimeline() {
-    for (let i = 0; i < 24 * 60; i += 15) {    
-        if(i == 0) continue;
-        
-        if(i % 60 == 0) {
-            markTimeline(i, 20);
-            markTimestamp(i, 20);
-        } else if (i % 30 == 0) {
-            markTimeline(i, 10);
-        } else if (i % 15 == 0) {
-            markTimeline(i, 5);
-        }
-    }
-}
-
 function getEditIndex() {
     for (let task of schedule.taskArr) {
         if (task.edit == true) return schedule.taskArr.indexOf(task);
@@ -199,6 +164,41 @@ function getHeadIndex() {
         if (task.head == true) return schedule.taskArr.indexOf(task);
     }
     return null;
+}
+
+//-- Drawing --//
+function markTimeline(time, length) {
+    let canvas = document.getElementById("timelineCanvas");
+    let ctx = canvas.getContext('2d');
+    let lineY = secToPx(time * 60);
+    ctx.beginPath();
+    ctx.moveTo(0, lineY);
+    ctx.lineTo(length, lineY);
+    ctx.lineWidth = 1;
+    ctx.stroke();
+}
+
+function markTimestamp(time, length) {
+    let canvas = document.getElementById("timelineCanvas");
+    let ctx = canvas.getContext('2d');
+    let fontSize = 10;
+    ctx.font = `${fontSize}px serif`
+    ctx.fillText(secToTimestamp(time * 60, "min", "ampm"), length + 5, secToPx(time * 60) + (fontSize / 4));
+}
+
+function drawTimeline() {
+    for (let i = 0; i < 24 * 60; i += 15) {    
+        if(i == 0) continue;
+        
+        if(i % 60 == 0) {
+            markTimeline(i, 20);
+            markTimestamp(i, 20);
+        } else if (i % 30 == 0) {
+            markTimeline(i, 10);
+        } else if (i % 15 == 0) {
+            markTimeline(i, 5);
+        }
+    }
 }
 
 // -- Update Functions --//
@@ -362,7 +362,6 @@ class Task {
         // States
         this.head = false;
         this.active = false;
-        this.activeStart = 0;
         this.finished = false;
         this.downtime = false;
         this.allowOT = false;

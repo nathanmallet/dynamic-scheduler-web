@@ -549,56 +549,146 @@ function initPopupHandler() {
         }
         schedule.popup = popup;
 
-        // TODO: Overtime task popups should only contain "finish" and "cancel" button
+        // Move the popup to click position and display
+        let tlBox = tasklineElem.getBoundingClientRect();
+        popup.style.top = e.clientY - tlBox.top + 'px';
+        popup.style.left = e.clientX - tlBox.left + 'px';
+        tasklineElem.append(popup);
 
-        // Activate/Deactivate buttons
-        if(targetObj.head) {
-            if(!targetObj.active) {
-                let activate = document.createElement('input');
-                activate.type = "button";
-                activate.value = "Activate";
-                popup.append(activate);
+        if(!targetObj.overtime) {
 
-                activate.addEventListener('click', function() {
-                    targetObj.active = true;
-                    targetObj.activeStart = getNow();
-                    targetObj.elem.classList.add("activeTask");
-                    activate.remove();
-                    popup.remove();
-                    schedule.popup = null;
-                })
+            if(targetObj.head) {
+                if(!targetObj.active) {
+                    // Activate button
+                    let activate = document.createElement('input');
+                    activate.type = "button";
+                    activate.value = "Activate";
+                    popup.append(activate);
+
+                    activate.addEventListener('click', function() {
+                        targetObj.active = true;
+                        targetObj.activeStart = getNow();
+                        targetObj.elem.classList.add("activeTask");
+                        activate.remove();
+                        popup.remove();
+                        schedule.popup = null;
+                    })
+                }
+                else {
+                    // Deactivate button
+                    let deactivate = document.createElement('input');
+                    deactivate.type = "button";
+                    deactivate.value = "Deactivate";
+                    popup.append(deactivate);
+
+                    deactivate.addEventListener('click', function() {
+                        targetObj.active = false;
+                        targetObj.elem.classList.remove("activeTask");
+                        deactivate.remove();
+                        popup.remove();
+                        schedule.popup = null;
+
+                        // Split unfinished time into a new task block
+                        let index  = schedule.taskArr.indexOf(targetObj);
+                        let now = getNow();
+                        
+                        // Calculate unfinished duration before we edit targetObj.duration
+                        let unfinishDur = targetObj.end - now;
+
+                        // Finish active task
+                        targetObj.duration = now - targetObj.start;
+                        targetObj.elem.style.height = secToPx(targetObj.duration) + 'px';
+                        finishTask(targetObj);
+
+                        // Add new task for unfinished time
+                        let unfinishBlock = createTask(targetObj.name, now, unfinishDur);
+                        unfinishBlock.head = true;
+                        // Splice into taskArr
+                        schedule.taskArr.splice(index + 1, 0, unfinishBlock);
+                    })
+                }
             }
-            else {
-                let deactivate = document.createElement('input');
-                deactivate.type = "button";
-                deactivate.value = "Deactivate";
-                popup.append(deactivate);
 
-                deactivate.addEventListener('click', function() {
-                    targetObj.active = false;
-                    targetObj.elem.classList.remove("activeTask");
-                    deactivate.remove();
+            let editIndex = getEditIndex();
+            if (!targetObj.active && editIndex == -1 || editIndex == targetIndex) {
+                if (!targetObj.edit) {
+                    // Edit Mode button
+                    let editMode = document.createElement('input');
+                    editMode.type = "button";
+                    editMode.value = "Edit Mode";
+                    popup.append(editMode);
+                    
+                    // TODO: Edit mode
+                    // 1. Double click name to edit name
+                    // 2. Duration edit via drag? (in "edit" mode)
+                    // 3. Click and drag in "edit" mode
+
+                    editMode.addEventListener('click', function() {                    
+                        targetObj.edit = true;
+                        editMode.remove();
+                        popup.remove();
+                        schedule.popup = null;
+                        target.classList.add("editTask");
+                        document.addEventListener('keydown', moveKeyListener);           
+                    })
+                } else {
+                    // Done button
+                    let done = document.createElement('input');
+                    done.type = "button";
+                    done.value = "Exit Edit Mode";
+                    popup.append(done);
+
+                    done.addEventListener('click', function() {
+                        targetObj.edit = false;
+                        target.classList.remove("editTask");
+                        done.remove();
+                        popup.remove();
+                        schedule.popup = null;
+                        document.removeEventListener('keydown', moveKeyListener);
+                    })
+                }
+            }
+
+            // Edit Details Button
+            let editDetails = document.createElement('input');
+            editDetails.type = "button";
+            editDetails.value = "Edit Details";
+            popup.append(editDetails);
+
+            editDetails.addEventListener('click', function() {
+                editDetails.remove();
+                popup.remove();
+                let editMenuElem = document.getElementById("editMenu");
+                editMenuElem.style.visibility = 'visible';
+                schedule.popup = editMenuElem;
+                targetObj.edit = true;
+            })
+
+            // Overtime Activate/Deactivate buttons
+            if(!targetObj.allowOT) {
+                let allow = document.createElement('input');
+                allow.type = "button";
+                allow.value = "Allow OT";
+                popup.append(allow);
+
+                allow.addEventListener('click', function() {
+                    allow.remove();
                     popup.remove();
                     schedule.popup = null;
+                    targetObj.allowOT = true;
+                });
+            } else {
+                let disallow = document.createElement('input');
+                disallow.type = "button";
+                disallow.value = "Disallow OT";
+                popup.append(disallow);
 
-                    // Split unfinished time into a new task block
-                    let index  = schedule.taskArr.indexOf(targetObj);
-                    let now = getNow();
-                    
-                    // Calculate unfinished duration before we edit targetObj.duration
-                    let unfinishDur = targetObj.end - now;
-
-                    // Finish active task
-                    targetObj.duration = now - targetObj.start;
-                    targetObj.elem.style.height = secToPx(targetObj.duration) + 'px';
-                    finishTask(targetObj);
-
-                    // Add new task for unfinished time
-                    let unfinishBlock = createTask(targetObj.name, now, unfinishDur);
-                    unfinishBlock.head = true;
-                    // Splice into taskArr
-                    schedule.taskArr.splice(index + 1, 0, unfinishBlock);
-                })
+                disallow.addEventListener('click', function() {
+                    disallow.remove();
+                    popup.remove();
+                    schedule.popup = null;
+                    targetObj.allowOT = false;
+                });
             }
         }
 
@@ -636,88 +726,6 @@ function initPopupHandler() {
                 finishTask(targetObj);
             });
         }
-        
-        let editIndex = getEditIndex();
-        if (!targetObj.active && editIndex == -1 || editIndex == targetIndex) {
-            if (!targetObj.edit) {
-                // Edit Mode button
-                let editMode = document.createElement('input');
-                editMode.type = "button";
-                editMode.value = "Edit Mode";
-                popup.append(editMode);
-                
-                // TODO: Edit mode
-                // 1. Double click name to edit name
-                // 2. Duration edit via drag? (in "edit" mode)
-                // 3. Click and drag in "edit" mode
-
-                editMode.addEventListener('click', function() {                    
-                    targetObj.edit = true;
-                    editMode.remove();
-                    popup.remove();
-                    schedule.popup = null;
-                    target.classList.add("editTask");
-                    document.addEventListener('keydown', moveKeyListener);           
-                })
-            } else {
-                // Done button
-                let done = document.createElement('input');
-                done.type = "button";
-                done.value = "Exit Edit Mode";
-                popup.append(done);
-
-                done.addEventListener('click', function() {
-                    targetObj.edit = false;
-                    target.classList.remove("editTask");
-                    done.remove();
-                    popup.remove();
-                    schedule.popup = null;
-                    document.removeEventListener('keydown', moveKeyListener);
-                })
-            }
-        }
-
-        // Edit Details Button
-        let editDetails = document.createElement('input');
-        editDetails.type = "button";
-        editDetails.value = "Edit Details";
-        popup.append(editDetails);
-
-        editDetails.addEventListener('click', function() {
-            editDetails.remove();
-            popup.remove();
-            let editMenuElem = document.getElementById("editMenu");
-            editMenuElem.style.visibility = 'visible';
-            schedule.popup = editMenuElem;
-            targetObj.edit = true;
-        })
-
-        // Overtime Activate/Deactivate buttons
-        if(!targetObj.allowOT) {
-            let allow = document.createElement('input');
-            allow.type = "button";
-            allow.value = "Allow OT";
-            popup.append(allow);
-
-            allow.addEventListener('click', function() {
-                allow.remove();
-                popup.remove();
-                schedule.popup = null;
-                targetObj.allowOT = true;
-            });
-        } else {
-            let disallow = document.createElement('input');
-            disallow.type = "button";
-            disallow.value = "Disallow OT";
-            popup.append(disallow);
-
-            disallow.addEventListener('click', function() {
-                disallow.remove();
-                popup.remove();
-                schedule.popup = null;
-                targetObj.allowOT = false;
-            });
-        }
 
         // Cancel Button
         let cancel = document.createElement('input');
@@ -730,12 +738,6 @@ function initPopupHandler() {
             popup.remove();
             schedule.popup = null;
         })
-
-        // Move the popup to click position and display
-        let tlBox = tasklineElem.getBoundingClientRect();
-        popup.style.top = e.clientY - tlBox.top + 'px';
-        popup.style.left = e.clientX - tlBox.left + 'px';
-        tasklineElem.append(popup);
     });
 }
 

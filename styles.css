@@ -41,6 +41,10 @@ input, label {
     border: solid 1px purple;
 }
 
+.overtimeTask {
+    border: solid 1px yellowgreen;
+}
+
 .editTask {
     border: solid 1px red;
 }

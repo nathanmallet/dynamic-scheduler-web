@@ -9,7 +9,7 @@ let schedule = {
     popup: null,
 }
 
-let debug = false;
+let debug = true;
 let fakeTime = schedule.startTime;
 
 function setupCanvas() {
@@ -65,6 +65,14 @@ function getDowntimeTotal() {
     let total = 0;
     for (let task of schedule.taskArr) {
         if (task.downtime) total += task.duration;
+    }
+    return total;
+}
+
+function getOvertimeTotal() {
+    let total = 0;
+    for (let task of schedule.taskArr) {
+        if (task.overtime) total += task.duration;
     }
     return total;
 }
@@ -240,10 +248,38 @@ function updateTasks() {
         if(task.finished || task.downtime) {
             continue;
         } else if(task.active) {
-            // Check if we have surpassed limit to transition to "finished" state
-            if(task.activeStart + task.duration < now) {
-                finishTask(task);
+            if (task.overtime) {
+                // Elongate our overtime block as we go, deactivate is via popup only
+                overtimeDur = now - task.start;
+                task.duration = overtimeDur;                
+                task.elem.style.height = secToPx(overtimeDur) + 'px';
+                continue;
+
+            } else if(task.activeStart + task.duration < now) {
+                // Check if we have surpassed limit to transition to "finished" state
                 let index = schedule.taskArr.indexOf(task);
+                // Check for overtime flag
+                if(task.allowOT) {
+                    let taskBlock = document.createElement('div');
+                    taskBlock.className = "taskBlock";
+                    taskBlock.classList.add("overtimeTask");
+                    taskBlock.style.position = 'absolute';
+
+                    let overtimeStart = task.end;
+                    let overtimeDur = 0
+                    taskBlock.style.height = secToPx(overtimeDur) + "px";
+                    taskBlock.style.top = secToPx(overtimeStart) + 'px';
+
+                    let tasklineElem = document.getElementById("taskline");
+                    tasklineElem.append(taskBlock);
+                    let taskObj = new Task(task.name, overtimeStart, overtimeDur, taskBlock);
+                    // Insert directly after, and make immediately active
+                    schedule.taskArr.splice(index + 1, 0, taskObj);
+                    taskObj.active = true;
+                    taskObj.overtime = true;
+                }
+
+                finishTask(task);
                 if (schedule.taskArr.length-1 > index) schedule.taskArr[index + 1].head = true;
 
                 continue;
@@ -294,7 +330,6 @@ function updateTasks() {
                 let downtimeDur = downtimeEnd - schedule.taskArr[index - 1].start;
                 schedule.taskArr[index - 1].duration = downtimeDur;
                 schedule.taskArr[index - 1].elem.style.height = secToPx(downtimeDur) + 'px';
-                
             }
             
         } else {
@@ -311,6 +346,8 @@ function updateTasks() {
 
 function updateCount() {
     document.getElementById("downtimeCount").innerText = secToTimestamp(getDowntimeTotal(), 'sec', '24hour');
+    document.getElementById("overtimeCount").innerText = secToTimestamp(getOvertimeTotal(), 'sec', '24hour');
+
 }
 
 // Task object type
@@ -328,6 +365,8 @@ class Task {
         this.activeStart = 0;
         this.finished = false;
         this.downtime = false;
+        this.allowOT = false;
+        this.overtime = false;
         this.edit = false;
     }
 
@@ -356,6 +395,7 @@ function createTask(name, start, dur) {
 function finishTask(task) {
     task.finished = true;
     task.head = false;
+    task.active = false;
     task.elem.classList.remove("activeTask");
     task.elem.classList.add("finishedTask");
     task.elem.innerText = `${task.name}\t${secToTimestamp(task.start, 'min', '24hour')}-${secToTimestamp(task.end, 'min', '24hour')}`;
@@ -509,6 +549,7 @@ function initPopupHandler() {
         }
         schedule.popup = popup;
 
+        // TODO: Overtime task popups should only contain "finish" and "cancel" button
 
         // Activate/Deactivate buttons
         if(targetObj.head) {
@@ -650,6 +691,33 @@ function initPopupHandler() {
             schedule.popup = editMenuElem;
             targetObj.edit = true;
         })
+
+        // Overtime Activate/Deactivate buttons
+        if(!targetObj.allowOT) {
+            let allow = document.createElement('input');
+            allow.type = "button";
+            allow.value = "Allow OT";
+            popup.append(allow);
+
+            allow.addEventListener('click', function() {
+                allow.remove();
+                popup.remove();
+                schedule.popup = null;
+                targetObj.allowOT = true;
+            });
+        } else {
+            let disallow = document.createElement('input');
+            disallow.type = "button";
+            disallow.value = "Disallow OT";
+            popup.append(disallow);
+
+            disallow.addEventListener('click', function() {
+                disallow.remove();
+                popup.remove();
+                schedule.popup = null;
+                targetObj.allowOT = false;
+            });
+        }
 
         // Cancel Button
         let cancel = document.createElement('input');

@@ -166,6 +166,54 @@ function getHeadIndex() {
     return null;
 }
 
+function updateDisplayName(task) {
+    let segmented = task.segTotal > 1;
+    let displayName;
+    let now = getNow();
+
+    // Potential displayName elements
+    let segMarker = `${task.segPos} / ${task.segTotal}`;
+    let finishTimestamp = `${secToTimestamp(task.start, 'min', '24hour')}-${secToTimestamp(task.end, 'min', '24hour')}`;
+    let activeTimestamp = secToTimestamp(task.end - now, 'sec', '24hour');
+    
+    if (segmented && task.finished) {
+        // name + start-finish + segment marker
+        displayName = task.name + ' ' + finishTimestamp + ' ' + segMarker;
+    } else if (segmented && task.active) {
+        // name + countdown + segment marker
+        displayName = task.name + ' ' + activeTimestamp + ' ' + segMarker;
+    } else if (segmented) {
+        // name + segment marker
+        displayName = task.name + ' ' + segMarker;
+    } else {
+        // name
+        displayName = task.name;
+    }
+    task.displayName = displayName;
+    task.elem.innerText = displayName;
+}
+
+function updateSegCount(task) {
+    let pos = 1;
+    let prev = task.prevSegment;
+    while (prev) {
+        pos++;
+        prev = prev.prevSegment;
+    }
+
+    let total = pos;
+    let next = task.nextSegment;
+    while (next) {
+        total++;
+        next = next.nextSegment;
+    }
+
+    task.segPos = pos;
+    task.segTotal = total;
+
+    updateDisplayName(task);
+}
+
 //-- Drawing --//
 function markTimeline(time, length) {
     let canvas = document.getElementById("timelineCanvas");
@@ -286,7 +334,8 @@ function updateTasks() {
             }
 
             // Write a countdown till finish in active tasks
-            task.elem.innerText = `${task.name} - ${secToTimestamp(task.end - now, 'sec', '24hour')}`;
+            // task.elem.innerText = `${task.name} - ${secToTimestamp(task.end - now, 'sec', '24hour')}`;
+            updateDisplayName(task);
             
         } else if(task.head) {
             task.start = now;
@@ -355,9 +404,17 @@ class Task {
     constructor(name, start, duration, elem) {
         // Variables
         this.name = name;
+        this.displayName = name;
         this.start = start;
         this.duration = duration;
         this.elem = elem;
+        this.activeStart = 0;
+
+        // Segmenting
+        this.prevSegment = null;
+        this.nextSegment = null;
+        this.segPos = 0;
+        this.segTotal = 0;
 
         // States
         this.head = false;
@@ -378,7 +435,7 @@ class Task {
 function createTask(name, start, dur) {
     let taskBlock = document.createElement('div');
     taskBlock.className = "taskBlock";
-    taskBlock.innerText = name;
+    // taskBlock.innerText = name;
     taskBlock.style.position = 'absolute';
     taskBlock.style.height = secToPx(dur) + "px";
 
@@ -388,7 +445,9 @@ function createTask(name, start, dur) {
     // Append to the taskline element and ledger of current tasks
     let tasklineElem = document.getElementById("taskline");
     tasklineElem.append(taskBlock);
-    return new Task(name, start, dur, taskBlock);    
+    let taskObj =  new Task(name, start, dur, taskBlock);    
+    updateDisplayName(taskObj);
+    return taskObj;
 }
 
 function finishTask(task) {
@@ -397,7 +456,8 @@ function finishTask(task) {
     task.active = false;
     task.elem.classList.remove("activeTask");
     task.elem.classList.add("finishedTask");
-    task.elem.innerText = `${task.name}\t${secToTimestamp(task.start, 'min', '24hour')}-${secToTimestamp(task.end, 'min', '24hour')}`;
+    // task.elem.innerText = `${task.name}\t${secToTimestamp(task.start, 'min', '24hour')}-${secToTimestamp(task.end, 'min', '24hour')}`;
+    updateDisplayName(task);
 }
 
 //-- Event Handlers --//
@@ -464,7 +524,8 @@ function initEditFormHandler() {
         // Update name field
         if (taskName != '') {
             targetObj.name = taskName;
-            targetObj.elem.innerText = taskName;
+            // targetObj.elem.innerText = taskName;
+            updateDisplayName(targetObj);
         }
        
         // Update duration field
@@ -600,10 +661,24 @@ function initPopupHandler() {
                         finishTask(targetObj);
 
                         // Add new task for unfinished time
-                        let unfinishBlock = createTask(targetObj.name, now, unfinishDur);
-                        unfinishBlock.head = true;
+                        let unfinishObj = createTask(targetObj.name, now, unfinishDur);
+                        unfinishObj.prevSegment = targetObj;
+                        targetObj.nextSegment = unfinishObj;
+                        unfinishObj.head = true;
+
+                        // Update segment information
+                        updateSegCount(targetObj);
+                        updateSegCount(unfinishObj);
+
+                        // Update segment info for finished tasks (e.g. > 1 splits)
+                        let prev = targetObj.prevSegment;
+                        while (prev) {
+                            updateSegCount(prev);
+                            prev = prev.prevSegment;
+                        }
+
                         // Splice into taskArr
-                        schedule.taskArr.splice(index + 1, 0, unfinishBlock);
+                        schedule.taskArr.splice(index + 1, 0, unfinishObj);
                     })
                 }
             }
